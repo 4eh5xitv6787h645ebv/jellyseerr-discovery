@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Jellyseerr Discovery</title>
+</head>
+<body>
+    <div id="JellyseerrDiscoveryConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+        data-require="emby-input,emby-button,emby-checkbox,emby-select">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="JellyseerrDiscoveryConfigForm">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">Jellyseerr Discovery</h2>
+                    </div>
+
+                    <div class="verticalSection">
+                        <p class="description">
+                            Discover actor filmography and studio catalogs via Jellyseerr/TMDb.
+                            When viewing an actor or studio in Jellyfin, you can see their complete works
+                            including content not yet in your library.
+                        </p>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">General Settings</h3>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="Enabled" />
+                                <span>Enable Plugin</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Enable or disable the Jellyseerr Discovery plugin.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Jellyseerr Connection</h3>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="JellyseerrUrl">
+                                Jellyseerr URL
+                            </label>
+                            <input type="text" id="JellyseerrUrl" is="emby-input"
+                                placeholder="http://jellyseerr:5055" />
+                            <div class="fieldDescription">
+                                The URL of your Jellyseerr server. Use the internal Docker hostname if running in Docker
+                                (e.g., http://jellyseerr:5055).
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="JellyseerrApiKey">
+                                Jellyseerr API Key
+                            </label>
+                            <input type="password" id="JellyseerrApiKey" is="emby-input"
+                                placeholder="API Key" />
+                            <div class="fieldDescription">
+                                Your Jellyseerr API key. Find this in Jellyseerr Settings > General > API Key.
+                            </div>
+                        </div>
+
+                        <div class="inputContainer">
+                            <button type="button" is="emby-button" class="raised button-submit"
+                                id="TestConnection">
+                                <span>Test Connection</span>
+                            </button>
+                            <span id="TestResult" style="margin-left: 10px;"></span>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Display Options</h3>
+
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="MaxResults">
+                                Maximum Results
+                            </label>
+                            <input type="number" id="MaxResults" is="emby-input" min="10" max="500"
+                                placeholder="50" />
+                            <div class="fieldDescription">
+                                Maximum number of results to return per query (10-500). Higher values may slow down responses.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="IncludeLibraryItems" />
+                                <span>Include items already in library</span>
+                            </label>
+                            <div class="fieldDescription">
+                                When enabled, shows all results including items already available in your library.
+                                When disabled, only shows items that can be requested.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowMediaStatus" />
+                                <span>Show media status</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the availability status (Available, Requested, etc.) for each item.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">API Endpoints</h3>
+                        <div class="description">
+                            <p>The following API endpoints are available:</p>
+                            <ul style="font-family: monospace; font-size: 0.9em;">
+                                <li><strong>GET</strong> /JellyseerrDiscovery/person/{tmdbId} - Get actor filmography</li>
+                                <li><strong>GET</strong> /JellyseerrDiscovery/person/search?name={name} - Search actor by name</li>
+                                <li><strong>GET</strong> /JellyseerrDiscovery/studio/{tmdbId}?page=1 - Get studio catalog</li>
+                                <li><strong>GET</strong> /JellyseerrDiscovery/studio/search?name={name}&page=1 - Search studio by name</li>
+                                <li><strong>GET</strong> /JellyseerrDiscovery/network/{tmdbId}?page=1 - Get TV network catalog</li>
+                                <li><strong>GET</strong> /JellyseerrDiscovery/health - Health check</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var JellyseerrDiscoveryConfig = {
+                pluginUniqueId: 'b2c3d4e5-f6a7-8901-bcde-f23456789012'
+            };
+
+            document.querySelector('#JellyseerrDiscoveryConfigPage')
+                .addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId)
+                        .then(function (config) {
+                            document.querySelector('#Enabled').checked = config.Enabled;
+                            document.querySelector('#JellyseerrUrl').value = config.JellyseerrUrl || '';
+                            document.querySelector('#JellyseerrApiKey').value = config.JellyseerrApiKey || '';
+                            document.querySelector('#MaxResults').value = config.MaxResults || 50;
+                            document.querySelector('#IncludeLibraryItems').checked = config.IncludeLibraryItems;
+                            document.querySelector('#ShowMediaStatus').checked = config.ShowMediaStatus;
+                            Dashboard.hideLoadingMsg();
+                        });
+                });
+
+            document.querySelector('#JellyseerrDiscoveryConfigForm')
+                .addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId)
+                        .then(function (config) {
+                            config.Enabled = document.querySelector('#Enabled').checked;
+                            config.JellyseerrUrl = document.querySelector('#JellyseerrUrl').value;
+                            config.JellyseerrApiKey = document.querySelector('#JellyseerrApiKey').value;
+                            config.MaxResults = parseInt(document.querySelector('#MaxResults').value) || 50;
+                            config.IncludeLibraryItems = document.querySelector('#IncludeLibraryItems').checked;
+                            config.ShowMediaStatus = document.querySelector('#ShowMediaStatus').checked;
+
+                            ApiClient.updatePluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId, config)
+                                .then(function (result) {
+                                    Dashboard.processPluginConfigurationUpdateResult(result);
+                                });
+                        });
+
+                    return false;
+                });
+
+            document.querySelector('#TestConnection')
+                .addEventListener('click', function () {
+                    var resultSpan = document.querySelector('#TestResult');
+                    resultSpan.textContent = 'Testing...';
+                    resultSpan.style.color = '';
+
+                    var url = document.querySelector('#JellyseerrUrl').value;
+                    if (!url) {
+                        resultSpan.textContent = 'Please enter Jellyseerr URL first';
+                        resultSpan.style.color = 'red';
+                        return;
+                    }
+
+                    // Test the health endpoint
+                    fetch(ApiClient.getUrl('JellyseerrDiscovery/health'))
+                        .then(function (response) {
+                            return response.json();
+                        })
+                        .then(function (data) {
+                            if (data.status === 'ok') {
+                                resultSpan.textContent = 'Connection successful!';
+                                resultSpan.style.color = 'green';
+                            } else {
+                                resultSpan.textContent = 'Connection failed';
+                                resultSpan.style.color = 'red';
+                            }
+                        })
+                        .catch(function (error) {
+                            resultSpan.textContent = 'Error: ' + error.message;
+                            resultSpan.style.color = 'red';
+                        });
+                });
+        </script>
+    </div>
+</body>
+</html>

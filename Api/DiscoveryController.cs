@@ -1,0 +1,326 @@
+using System.ComponentModel.DataAnnotations;
+using JellyseerrDiscovery.Models;
+using JellyseerrDiscovery.Services;
+using MediaBrowser.Controller.Library;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+
+namespace JellyseerrDiscovery.Api;
+
+/// <summary>
+/// API controller for Jellyseerr Discovery endpoints.
+/// </summary>
+[ApiController]
+[Route("JellyseerrDiscovery")]
+[Authorize]
+public class DiscoveryController : ControllerBase
+{
+    private readonly IJellyseerrService _jellyseerrService;
+    private readonly ILibraryManager _libraryManager;
+    private readonly ILogger<DiscoveryController> _logger;
+
+    public DiscoveryController(
+        IJellyseerrService jellyseerrService,
+        ILibraryManager libraryManager,
+        ILogger<DiscoveryController> logger)
+    {
+        _jellyseerrService = jellyseerrService;
+        _libraryManager = libraryManager;
+        _logger = logger;
+    }
+
+    private PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
+
+    /// <summary>
+    /// Get an actor's filmography from Jellyseerr/TMDb.
+    /// </summary>
+    /// <param name="personId">The TMDb person ID.</param>
+    /// <returns>Person details and their filmography.</returns>
+    [HttpGet("person/{personId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<PersonDiscoveryResponse>> GetPersonFilmography([Required] int personId)
+    {
+        if (!Config.Enabled)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Jellyseerr Discovery is disabled");
+        }
+
+        _logger.LogInformation("Getting filmography for person {PersonId}", personId);
+
+        var (person, credits) = await _jellyseerrService.GetPersonWithCreditsAsync(personId);
+
+        if (person == null)
+        {
+            return NotFound($"Person with ID {personId} not found");
+        }
+
+        // Filter based on config
+        if (!Config.IncludeLibraryItems)
+        {
+            credits = credits.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+        }
+
+        return Ok(new PersonDiscoveryResponse
+        {
+            Person = person,
+            Credits = credits,
+            TotalResults = credits.Count
+        });
+    }
+
+    /// <summary>
+    /// Get an actor's filmography by searching their name.
+    /// </summary>
+    /// <param name="name">The actor's name.</param>
+    /// <returns>Person details and their filmography.</returns>
+    [HttpGet("person/search")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<PersonDiscoveryResponse>> SearchPersonFilmography([Required] string name)
+    {
+        if (!Config.Enabled)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Jellyseerr Discovery is disabled");
+        }
+
+        _logger.LogInformation("Searching for person: {Name}", name);
+
+        // First, search for the person
+        var people = await _jellyseerrService.SearchPersonAsync(name);
+
+        if (people.Count == 0)
+        {
+            return NotFound($"No person found matching '{name}'");
+        }
+
+        // Get the first (best) match
+        var bestMatch = people.First();
+
+        // Now get their filmography
+        var (person, credits) = await _jellyseerrService.GetPersonWithCreditsAsync(bestMatch.Id);
+
+        if (person == null)
+        {
+            return NotFound($"Could not retrieve filmography for {bestMatch.Name}");
+        }
+
+        // Filter based on config
+        if (!Config.IncludeLibraryItems)
+        {
+            credits = credits.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+        }
+
+        return Ok(new PersonDiscoveryResponse
+        {
+            Person = person,
+            Credits = credits,
+            TotalResults = credits.Count
+        });
+    }
+
+    /// <summary>
+    /// Get a studio's catalog from Jellyseerr/TMDb.
+    /// </summary>
+    /// <param name="studioId">The TMDb company/studio ID.</param>
+    /// <param name="page">Page number for pagination.</param>
+    /// <returns>Studio details and their catalog.</returns>
+    [HttpGet("studio/{studioId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<StudioDiscoveryResponse>> GetStudioCatalog(
+        [Required] int studioId,
+        [FromQuery] int page = 1)
+    {
+        if (!Config.Enabled)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Jellyseerr Discovery is disabled");
+        }
+
+        _logger.LogInformation("Getting catalog for studio {StudioId}, page {Page}", studioId, page);
+
+        var studioTask = _jellyseerrService.GetStudioAsync(studioId);
+        var catalogTask = _jellyseerrService.DiscoverByStudioAsync(studioId, page);
+
+        await Task.WhenAll(studioTask, catalogTask);
+
+        var studio = await studioTask;
+        var catalog = await catalogTask;
+
+        if (studio == null && catalog == null)
+        {
+            return NotFound($"Studio with ID {studioId} not found");
+        }
+
+        var items = catalog?.Results ?? new List<DiscoveryItem>();
+
+        // Filter based on config
+        if (!Config.IncludeLibraryItems)
+        {
+            items = items.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+        }
+
+        return Ok(new StudioDiscoveryResponse
+        {
+            Studio = studio,
+            Items = items,
+            Page = catalog?.Page ?? 1,
+            TotalPages = catalog?.TotalPages ?? 1,
+            TotalResults = catalog?.TotalResults ?? items.Count
+        });
+    }
+
+    /// <summary>
+    /// Get a TV network's catalog from Jellyseerr/TMDb.
+    /// </summary>
+    /// <param name="networkId">The TMDb network ID.</param>
+    /// <param name="page">Page number for pagination.</param>
+    /// <returns>Network catalog.</returns>
+    [HttpGet("network/{networkId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<StudioDiscoveryResponse>> GetNetworkCatalog(
+        [Required] int networkId,
+        [FromQuery] int page = 1)
+    {
+        if (!Config.Enabled)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Jellyseerr Discovery is disabled");
+        }
+
+        _logger.LogInformation("Getting catalog for network {NetworkId}, page {Page}", networkId, page);
+
+        var catalog = await _jellyseerrService.DiscoverByNetworkAsync(networkId, page);
+
+        if (catalog == null)
+        {
+            return NotFound($"Network with ID {networkId} not found");
+        }
+
+        var items = catalog.Results;
+
+        // Filter based on config
+        if (!Config.IncludeLibraryItems)
+        {
+            items = items.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+        }
+
+        return Ok(new StudioDiscoveryResponse
+        {
+            Studio = null,
+            Items = items,
+            Page = catalog.Page,
+            TotalPages = catalog.TotalPages,
+            TotalResults = catalog.TotalResults
+        });
+    }
+
+    /// <summary>
+    /// Search for a studio by name and get its catalog.
+    /// </summary>
+    /// <param name="name">The studio name.</param>
+    /// <param name="page">Page number for pagination.</param>
+    /// <returns>Studio details and catalog.</returns>
+    [HttpGet("studio/search")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<StudioDiscoveryResponse>> SearchStudioCatalog(
+        [Required] string name,
+        [FromQuery] int page = 1)
+    {
+        if (!Config.Enabled)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Jellyseerr Discovery is disabled");
+        }
+
+        _logger.LogInformation("Searching for studio: {Name}", name);
+
+        // First, search for the studio
+        var studios = await _jellyseerrService.SearchStudioAsync(name);
+
+        if (studios.Count == 0)
+        {
+            return NotFound($"No studio found matching '{name}'");
+        }
+
+        // Get the first (best) match
+        var bestMatch = studios.First();
+
+        // Now get their catalog
+        var catalog = await _jellyseerrService.DiscoverByStudioAsync(bestMatch.Id, page);
+
+        var items = catalog?.Results ?? new List<DiscoveryItem>();
+
+        // Filter based on config
+        if (!Config.IncludeLibraryItems)
+        {
+            items = items.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+        }
+
+        return Ok(new StudioDiscoveryResponse
+        {
+            Studio = bestMatch,
+            Items = items,
+            Page = catalog?.Page ?? 1,
+            TotalPages = catalog?.TotalPages ?? 1,
+            TotalResults = catalog?.TotalResults ?? items.Count
+        });
+    }
+
+    /// <summary>
+    /// Health check endpoint.
+    /// </summary>
+    [HttpGet("health")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<HealthCheckResponse> HealthCheck()
+    {
+        return Ok(new HealthCheckResponse
+        {
+            Status = "ok",
+            Enabled = Config.Enabled,
+            JellyseerrConfigured = !string.IsNullOrEmpty(Config.JellyseerrUrl),
+            Version = typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "1.0.0"
+        });
+    }
+}
+
+/// <summary>
+/// Response for person discovery endpoint.
+/// </summary>
+public class PersonDiscoveryResponse
+{
+    public PersonDetails? Person { get; set; }
+    public List<DiscoveryItem> Credits { get; set; } = new();
+    public int TotalResults { get; set; }
+}
+
+/// <summary>
+/// Response for studio discovery endpoint.
+/// </summary>
+public class StudioDiscoveryResponse
+{
+    public StudioDetails? Studio { get; set; }
+    public List<DiscoveryItem> Items { get; set; } = new();
+    public int Page { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
+    public int TotalResults { get; set; }
+}
+
+/// <summary>
+/// Health check response.
+/// </summary>
+public class HealthCheckResponse
+{
+    public string Status { get; set; } = "ok";
+    public bool Enabled { get; set; }
+    public bool JellyseerrConfigured { get; set; }
+    public string Version { get; set; } = "1.0.0";
+}

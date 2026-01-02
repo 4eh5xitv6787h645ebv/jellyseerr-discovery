@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.2.0.0",
+        "changelog": "Fix studio search not returning results - now uses correct API endpoint with mediaType filtering",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.2.0.0/JellyseerrDiscovery.zip",
+        "checksum": "",
+        "timestamp": "2026-01-02T16:00:00Z"
+      },
+      {
         "version": "1.1.0.2",
         "changelog": "Add comprehensive debug logging for studio detection",
         "targetAbi": "10.11.0.0",

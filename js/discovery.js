@@ -165,8 +165,8 @@
 
     // Check if Jellyfin Enhanced is available
     if (!JE?.jellyseerrUI) {
-      log("Jellyfin Enhanced not available, opening Jellyseerr directly");
-      window.open(`https://jellyseerr.whatevenwasthatum.com/${type}/${tmdbId}`, "_blank");
+      log("Jellyfin Enhanced not available");
+      alert("Jellyfin Enhanced plugin is required for request functionality.");
       return;
     }
 

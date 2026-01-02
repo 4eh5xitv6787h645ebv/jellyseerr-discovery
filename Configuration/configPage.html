@@ -116,6 +116,16 @@
                                 (e.g., "The Late Show", "The Kelly Clarkson Show", "Tony Awards").
                             </div>
                         </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="DebugMode" />
+                                <span>Enable debug mode</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Enable debug logging in the browser console for troubleshooting.
+                            </div>
+                        </div>
                     </div>
 
                     <div class="verticalSection">
@@ -159,6 +169,7 @@
                             document.querySelector('#IncludeLibraryItems').checked = config.IncludeLibraryItems;
                             document.querySelector('#ShowMediaStatus').checked = config.ShowMediaStatus;
                             document.querySelector('#ExcludeTalkShows').checked = config.ExcludeTalkShows !== false;
+                            document.querySelector('#DebugMode').checked = config.DebugMode;
                             Dashboard.hideLoadingMsg();
                         });
                 });
@@ -177,6 +188,7 @@
                             config.IncludeLibraryItems = document.querySelector('#IncludeLibraryItems').checked;
                             config.ShowMediaStatus = document.querySelector('#ShowMediaStatus').checked;
                             config.ExcludeTalkShows = document.querySelector('#ExcludeTalkShows').checked;
+                            config.DebugMode = document.querySelector('#DebugMode').checked;
 
                             ApiClient.updatePluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId, config)
                                 .then(function (result) {

@@ -38,4 +38,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets whether to exclude talk shows and award shows from results.
     /// </summary>
     public bool ExcludeTalkShows { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to enable debug logging in the browser console.
+    /// </summary>
+    public bool DebugMode { get; set; } = false;
 }

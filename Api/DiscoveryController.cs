@@ -356,7 +356,8 @@ public class DiscoveryController : ControllerBase
             JellyseerrConnected = isConnected,
             ErrorMessage = errorMessage,
             Version = typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "1.0.0",
-            ExcludeTalkShows = Config.ExcludeTalkShows
+            ExcludeTalkShows = Config.ExcludeTalkShows,
+            DebugMode = Config.DebugMode
         });
     }
 
@@ -417,4 +418,5 @@ public class HealthCheckResponse
     public string? ErrorMessage { get; set; }
     public string Version { get; set; } = "1.0.0";
     public bool ExcludeTalkShows { get; set; } = true;
+    public bool DebugMode { get; set; } = false;
 }

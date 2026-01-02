@@ -5,7 +5,6 @@
 
   const CONFIG = {
     enabled: true,
-    debug: false,
     apiBase: "JellyseerrDiscovery",
     pollMs: 300,
     pollMax: 25,
@@ -15,7 +14,7 @@
   if (window.__JellyseerrDiscoveryV2) return;
   window.__JellyseerrDiscoveryV2 = true;
 
-  const log = (...a) => CONFIG.debug && console.log("[Discovery]", ...a);
+  const log = (...a) => pluginConfig?.DebugMode && console.log("[Discovery]", ...a);
 
   let lastUrl = "";
   let isProcessing = false;

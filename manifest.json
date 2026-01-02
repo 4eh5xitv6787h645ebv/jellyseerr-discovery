@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.2.0.2",
+        "changelog": "Fix JavaScript case mismatch - use camelCase to match backend JSON response",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.2.0.2/JellyseerrDiscovery.zip",
+        "checksum": "196d5b469382dfddc23129321927b25b",
+        "timestamp": "2026-01-02T17:00:00Z"
+      },
+      {
         "version": "1.2.0.1",
         "changelog": "Fix studio search - use dedicated /api/v1/search/company endpoint instead of multi-search",
         "targetAbi": "10.11.0.0",

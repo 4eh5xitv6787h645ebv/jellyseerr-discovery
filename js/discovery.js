@@ -577,8 +577,8 @@
         }
       }
 
-      // Check for Studio list page
-      const studioId = params.get("studioId");
+      // Check for Studio list page (Jellyfin uses studioIds plural)
+      const studioId = params.get("studioIds") || params.get("studioId");
       if (studioId) {
         log("Found studioId:", studioId);
         const item = await getItemInfo(studioId);

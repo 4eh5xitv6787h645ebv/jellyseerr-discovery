@@ -1,16 +1,18 @@
 using System.Text.RegularExpressions;
+using JellyseerrDiscovery.Models;
 
 namespace JellyseerrDiscovery.Helpers;
 
 public static class TransformationPatches
 {
-    public static string IndexHtml(dynamic content)
+    public static string IndexHtml(PatchRequestPayload content)
     {
-        string contents = content.Contents?.ToString() ?? string.Empty;
-        if (string.IsNullOrEmpty(contents))
+        if (string.IsNullOrEmpty(content.Contents))
         {
-            return contents;
+            return content.Contents ?? string.Empty;
         }
+
+        var contents = content.Contents;
 
         var pluginName = "Jellyseerr Discovery";
         var pluginVersion = Plugin.Instance?.Version.ToString() ?? "1.0.0";

@@ -52,7 +52,7 @@ public class StartupService : IScheduledTask
                 {
                     var payload = new JObject
                     {
-                        { "id", "b2c3d4e5-f6a7-8901-bcde-f23456789012" }, // Plugin GUID
+                        { "id", "b2c3d4e5-f6a7-8901-bcde-f23456789012" },
                         { "fileNamePattern", "index.html" },
                         { "callbackAssembly", GetType().Assembly.FullName },
                         { "callbackClass", typeof(TransformationPatches).FullName },
@@ -65,21 +65,17 @@ public class StartupService : IScheduledTask
                 }
                 else
                 {
-                    _logger.LogWarning("Could not find PluginInterface in FileTransformation assembly. Using fallback injection.");
+                    _logger.LogWarning("Could not find PluginInterface in FileTransformation assembly.");
                 }
             }
             else
             {
-                _logger.LogInformation("File Transformation Plugin not found. Using fallback injection.");
+                _logger.LogWarning("File Transformation Plugin not found. Script injection requires File Transformation plugin.");
             }
-
-            // Fallback: directly modify index.html
-            InjectScriptDirectly();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error registering script injection, trying fallback method.");
-            InjectScriptDirectly();
+            _logger.LogError(ex, "Error registering script injection with File Transformation.");
         }
     }
 

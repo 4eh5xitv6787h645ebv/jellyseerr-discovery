@@ -134,16 +134,29 @@ public class JellyseerrService : IJellyseerrService
 
     private PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
 
-    private string BaseUrl => Config.JellyseerrUrl?.TrimEnd('/') ?? string.Empty;
+    private Uri BaseUri
+    {
+        get
+        {
+            var baseUrl = Config.JellyseerrUrl?.Trim();
+            if (string.IsNullOrEmpty(baseUrl))
+            {
+                throw new InvalidOperationException("Jellyseerr URL is not configured");
+            }
+
+            if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var baseUri) ||
+                (baseUri.Scheme != Uri.UriSchemeHttp && baseUri.Scheme != Uri.UriSchemeHttps))
+            {
+                throw new InvalidOperationException("Jellyseerr URL must be a valid http or https address");
+            }
+
+            return baseUri;
+        }
+    }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string endpoint)
     {
-        if (string.IsNullOrEmpty(BaseUrl))
-        {
-            throw new InvalidOperationException("Jellyseerr URL is not configured");
-        }
-
-        var request = new HttpRequestMessage(method, $"{BaseUrl}{endpoint}");
+        var request = new HttpRequestMessage(method, new Uri(BaseUri, endpoint));
 
         if (!string.IsNullOrEmpty(Config.JellyseerrApiKey))
         {
@@ -157,8 +170,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, "/api/v1/status");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, "/api/v1/status");
+            using var response = await _httpClient.SendAsync(request);
             _logger.LogInformation("Jellyseerr connection test: {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
@@ -173,8 +186,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -195,8 +208,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}/combined_credits");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}/combined_credits");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -268,8 +281,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/studio/{studioId}");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/studio/{studioId}");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -290,8 +303,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/movies?page={page}&studio={studioId}");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/movies?page={page}&studio={studioId}");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -322,8 +335,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/tv?page={page}&network={networkId}");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/tv?page={page}&network={networkId}");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -354,8 +367,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -397,8 +410,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            var request = CreateRequest(HttpMethod.Get, $"/api/v1/search/company?query={Uri.EscapeDataString(query)}");
-            var response = await _httpClient.SendAsync(request);
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
+            using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -414,10 +427,14 @@ public class JellyseerrService : IJellyseerrService
             {
                 foreach (var item in resultsArray.EnumerateArray())
                 {
-                    var studio = item.Deserialize<StudioDetails>(JsonOptions);
-                    if (studio != null)
+                    if (item.TryGetProperty("mediaType", out var mediaType) &&
+                        mediaType.GetString() == "company")
                     {
-                        results.Add(studio);
+                        var studio = item.Deserialize<StudioDetails>(JsonOptions);
+                        if (studio != null)
+                        {
+                            results.Add(studio);
+                        }
                     }
                 }
             }

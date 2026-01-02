@@ -410,7 +410,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
+            // Use the dedicated company search endpoint - multi-search doesn't return companies
+            using var request = CreateRequest(HttpMethod.Get, $"/api/v1/search/company?query={Uri.EscapeDataString(query)}");
             using var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
@@ -420,6 +421,8 @@ public class JellyseerrService : IJellyseerrService
             }
 
             var json = await response.Content.ReadAsStringAsync();
+            _logger.LogDebug("Studio search response: {Json}", json);
+
             using var doc = JsonDocument.Parse(json);
 
             var results = new List<StudioDetails>();
@@ -427,18 +430,15 @@ public class JellyseerrService : IJellyseerrService
             {
                 foreach (var item in resultsArray.EnumerateArray())
                 {
-                    if (item.TryGetProperty("mediaType", out var mediaType) &&
-                        mediaType.GetString() == "company")
+                    var studio = item.Deserialize<StudioDetails>(JsonOptions);
+                    if (studio != null)
                     {
-                        var studio = item.Deserialize<StudioDetails>(JsonOptions);
-                        if (studio != null)
-                        {
-                            results.Add(studio);
-                        }
+                        results.Add(studio);
                     }
                 }
             }
 
+            _logger.LogInformation("Found {Count} studios for query '{Query}'", results.Count, query);
             return results;
         }
         catch (Exception ex)

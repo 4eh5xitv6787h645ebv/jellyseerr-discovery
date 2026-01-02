@@ -33,4 +33,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets whether to show the media status (available, requested, etc).
     /// </summary>
     public bool ShowMediaStatus { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether to exclude talk shows and award shows from results.
+    /// </summary>
+    public bool ExcludeTalkShows { get; set; } = true;
 }

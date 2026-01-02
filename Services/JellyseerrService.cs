@@ -46,6 +46,16 @@ public interface IJellyseerrService
     /// Search for a studio/company by name
     /// </summary>
     Task<List<StudioDetails>> SearchStudioAsync(string query);
+
+    /// <summary>
+    /// Search for network by name and return network ID if found
+    /// </summary>
+    Task<int?> FindNetworkIdByNameAsync(string name);
+
+    /// <summary>
+    /// Test connection to Jellyseerr
+    /// </summary>
+    Task<bool> TestConnectionAsync();
 }
 
 public class JellyseerrService : IJellyseerrService
@@ -59,6 +69,63 @@ public class JellyseerrService : IJellyseerrService
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    // Common TV networks mapped to TMDb network IDs
+    private static readonly Dictionary<string, int> KnownNetworks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "The CW", 71 },
+        { "CW", 71 },
+        { "NBC", 6 },
+        { "CBS", 16 },
+        { "ABC", 2 },
+        { "Fox", 19 },
+        { "HBO", 49 },
+        { "HBO Max", 3186 },
+        { "Netflix", 213 },
+        { "Amazon", 1024 },
+        { "Prime Video", 1024 },
+        { "Amazon Prime Video", 1024 },
+        { "Hulu", 453 },
+        { "Disney+", 2739 },
+        { "Disney Plus", 2739 },
+        { "Apple TV+", 2552 },
+        { "Apple TV Plus", 2552 },
+        { "Peacock", 3353 },
+        { "Paramount+", 4330 },
+        { "Paramount Plus", 4330 },
+        { "Showtime", 67 },
+        { "Starz", 318 },
+        { "AMC", 174 },
+        { "FX", 88 },
+        { "USA Network", 30 },
+        { "TNT", 41 },
+        { "TBS", 32 },
+        { "Syfy", 77 },
+        { "Freeform", 1267 },
+        { "BBC One", 4 },
+        { "BBC Two", 332 },
+        { "BBC", 4 },
+        { "ITV", 9 },
+        { "Channel 4", 26 },
+        { "Sky", 1063 },
+        { "Sky Atlantic", 1063 },
+        { "Cartoon Network", 56 },
+        { "Adult Swim", 80 },
+        { "Comedy Central", 47 },
+        { "MTV", 33 },
+        { "Nickelodeon", 13 },
+        { "Discovery", 64 },
+        { "History", 65 },
+        { "National Geographic", 43 },
+        { "ESPN", 29 },
+        { "Bravo", 74 },
+        { "Lifetime", 34 },
+        { "A&E", 129 },
+        { "Hallmark", 384 },
+        { "Hallmark Channel", 384 },
+        { "Crunchyroll", 1112 },
+        { "Max", 3186 },
+    };
+
     public JellyseerrService(HttpClient httpClient, ILogger<JellyseerrService> logger)
     {
         _httpClient = httpClient;
@@ -67,19 +134,38 @@ public class JellyseerrService : IJellyseerrService
 
     private PluginConfiguration Config => Plugin.Instance?.Configuration ?? new PluginConfiguration();
 
-    private void ConfigureClient()
+    private string BaseUrl => Config.JellyseerrUrl?.TrimEnd('/') ?? string.Empty;
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string endpoint)
     {
-        if (string.IsNullOrEmpty(Config.JellyseerrUrl))
+        if (string.IsNullOrEmpty(BaseUrl))
         {
             throw new InvalidOperationException("Jellyseerr URL is not configured");
         }
 
-        _httpClient.BaseAddress = new Uri(Config.JellyseerrUrl.TrimEnd('/'));
+        var request = new HttpRequestMessage(method, $"{BaseUrl}{endpoint}");
 
         if (!string.IsNullOrEmpty(Config.JellyseerrApiKey))
         {
-            _httpClient.DefaultRequestHeaders.Remove("X-Api-Key");
-            _httpClient.DefaultRequestHeaders.Add("X-Api-Key", Config.JellyseerrApiKey);
+            request.Headers.Add("X-Api-Key", Config.JellyseerrApiKey);
+        }
+
+        return request;
+    }
+
+    public async Task<bool> TestConnectionAsync()
+    {
+        try
+        {
+            var request = CreateRequest(HttpMethod.Get, "/api/v1/status");
+            var response = await _httpClient.SendAsync(request);
+            _logger.LogInformation("Jellyseerr connection test: {StatusCode}", response.StatusCode);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Jellyseerr connection test failed");
+            return false;
         }
     }
 
@@ -87,8 +173,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/person/{personId}");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -109,8 +195,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/person/{personId}/combined_credits");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/person/{personId}/combined_credits");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -182,9 +268,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            // Jellyseerr proxies TMDb, so we query the company endpoint
-            var response = await _httpClient.GetAsync($"/api/v1/studio/{studioId}");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/studio/{studioId}");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -205,8 +290,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/discover/movies?page={page}&studio={studioId}");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/movies?page={page}&studio={studioId}");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -237,8 +322,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/discover/tv?page={page}&network={networkId}");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/discover/tv?page={page}&network={networkId}");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -269,8 +354,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/search?query={Uri.EscapeDataString(query)}&page=1");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -312,8 +397,8 @@ public class JellyseerrService : IJellyseerrService
     {
         try
         {
-            ConfigureClient();
-            var response = await _httpClient.GetAsync($"/api/v1/search/company?query={Uri.EscapeDataString(query)}");
+            var request = CreateRequest(HttpMethod.Get, $"/api/v1/search/company?query={Uri.EscapeDataString(query)}");
+            var response = await _httpClient.SendAsync(request);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -344,5 +429,35 @@ public class JellyseerrService : IJellyseerrService
             _logger.LogError(ex, "Error searching for studio: {Query}", query);
             return new List<StudioDetails>();
         }
+    }
+
+    public Task<int?> FindNetworkIdByNameAsync(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return Task.FromResult<int?>(null);
+        }
+
+        // Try exact match first
+        if (KnownNetworks.TryGetValue(name, out var networkId))
+        {
+            _logger.LogInformation("Found network ID {NetworkId} for '{Name}'", networkId, name);
+            return Task.FromResult<int?>(networkId);
+        }
+
+        // Try partial match
+        var matchingKey = KnownNetworks.Keys
+            .FirstOrDefault(k => name.Contains(k, StringComparison.OrdinalIgnoreCase) ||
+                                 k.Contains(name, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingKey != null)
+        {
+            var id = KnownNetworks[matchingKey];
+            _logger.LogInformation("Found network ID {NetworkId} for '{Name}' via partial match '{MatchedKey}'", id, name, matchingKey);
+            return Task.FromResult<int?>(id);
+        }
+
+        _logger.LogDebug("No network ID found for '{Name}'", name);
+        return Task.FromResult<int?>(null);
     }
 }

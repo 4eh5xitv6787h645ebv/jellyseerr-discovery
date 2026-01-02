@@ -105,6 +105,17 @@
                                 Show the availability status (Available, Requested, etc.) for each item.
                             </div>
                         </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ExcludeTalkShows" />
+                                <span>Exclude talk shows &amp; award shows</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Filter out talk shows, late night shows, award shows, and similar content
+                                (e.g., "The Late Show", "The Kelly Clarkson Show", "Tony Awards").
+                            </div>
+                        </div>
                     </div>
 
                     <div class="verticalSection">
@@ -147,6 +158,7 @@
                             document.querySelector('#MaxResults').value = config.MaxResults || 50;
                             document.querySelector('#IncludeLibraryItems').checked = config.IncludeLibraryItems;
                             document.querySelector('#ShowMediaStatus').checked = config.ShowMediaStatus;
+                            document.querySelector('#ExcludeTalkShows').checked = config.ExcludeTalkShows !== false;
                             Dashboard.hideLoadingMsg();
                         });
                 });
@@ -164,6 +176,7 @@
                             config.MaxResults = parseInt(document.querySelector('#MaxResults').value) || 50;
                             config.IncludeLibraryItems = document.querySelector('#IncludeLibraryItems').checked;
                             config.ShowMediaStatus = document.querySelector('#ShowMediaStatus').checked;
+                            config.ExcludeTalkShows = document.querySelector('#ExcludeTalkShows').checked;
 
                             ApiClient.updatePluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId, config)
                                 .then(function (result) {
@@ -193,11 +206,14 @@
                             return response.json();
                         })
                         .then(function (data) {
-                            if (data.status === 'ok') {
+                            if (data.JellyseerrConnected === true) {
                                 resultSpan.textContent = 'Connection successful!';
                                 resultSpan.style.color = 'green';
+                            } else if (data.ErrorMessage) {
+                                resultSpan.textContent = 'Failed: ' + data.ErrorMessage;
+                                resultSpan.style.color = 'red';
                             } else {
-                                resultSpan.textContent = 'Connection failed';
+                                resultSpan.textContent = 'Connection failed - check URL and API key';
                                 resultSpan.style.color = 'red';
                             }
                         })

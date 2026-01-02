@@ -10,7 +10,7 @@
       {
         "version": "1.1.0.0",
         "changelog": "Add Debug Mode setting for console logging, auto-inject JavaScript",
-        "targetAbi": "10.10.0.0",
+        "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.1.0/JellyseerrDiscovery.zip",
         "checksum": "6bd5535e571cd20c3193158d9803aa9d",
         "timestamp": "2026-01-02T07:06:06Z"

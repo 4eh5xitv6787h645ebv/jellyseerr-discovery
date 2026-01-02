@@ -8,12 +8,12 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.1.0.1",
-        "changelog": "Fix studio page detection, use studioIds parameter",
+        "version": "1.1.0.2",
+        "changelog": "Add comprehensive debug logging for studio detection",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.1.0.1/JellyseerrDiscovery.zip",
-        "checksum": "5ba69a1efad63f33e48c0c8e5aeae127",
-        "timestamp": "2026-01-02T07:06:06Z"
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.1.0.2/JellyseerrDiscovery.zip",
+        "checksum": "6f2056117cb02ef71ce633de40af5dd1",
+        "timestamp": "2026-01-02T08:00:00Z"
       }
     ]
   }

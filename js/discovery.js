@@ -494,7 +494,9 @@
 
     // Search for studio by name
     const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioName)}&page=1`);
+    log("Studio search URL:", searchUrl);
     const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
+    log("Studio search result:", data);
 
     if (!data?.Items?.length) { log("No items found for studio"); return; }
 
@@ -529,11 +531,20 @@
     // Remove existing
     document.getElementById("seerr-discovery-studio")?.remove();
 
-    // Find the page content area
+    // Find the page content area - try multiple selectors
+    log("Looking for page content container...");
+    log("  .pageWithAbsoluteTabs .itemsContainer:", document.querySelector(".pageWithAbsoluteTabs .itemsContainer"));
+    log("  .itemsContainer.vertical-wrap:", document.querySelector(".itemsContainer.vertical-wrap"));
+    log("  .itemsContainer:", document.querySelector(".itemsContainer"));
+    log("  .verticalSection:", document.querySelector(".verticalSection"));
+    log("  #itemDetailPage:", document.querySelector("#itemDetailPage"));
+
     const pageContent = document.querySelector(".pageWithAbsoluteTabs .itemsContainer") ||
                        document.querySelector(".itemsContainer.vertical-wrap") ||
-                       document.querySelector(".itemsContainer");
-    if (!pageContent) { log("Could not find items container"); return; }
+                       document.querySelector(".itemsContainer") ||
+                       document.querySelector(".verticalSection");
+    if (!pageContent) { log("Could not find items container - no valid selector found"); return; }
+    log("Found page content:", pageContent);
 
     // Create section
     const section = createSection(`More from ${studioName} on Jellyseerr (${displayItems.length})`, "seerr-discovery-studio");
@@ -560,6 +571,8 @@
     lastUrl = currentUrl;
 
     const params = getHashParams();
+    log("checkAndLoad: URL =", currentUrl);
+    log("checkAndLoad: params =", params ? Array.from(params.entries()) : "null");
     if (!params) return;
 
     isProcessing = true;
@@ -577,17 +590,19 @@
         }
       }
 
-      // Check for Studio list page (Jellyfin uses studioIds plural)
-      const studioId = params.get("studioIds") || params.get("studioId");
+      // Check for Studio list page - try multiple parameter names
+      const studioId = params.get("studioIds") || params.get("studioId") || params.get("studio");
+      log("checkAndLoad: studioId =", studioId);
       if (studioId) {
         log("Found studioId:", studioId);
         const item = await getItemInfo(studioId);
-        log("Studio item:", item?.Type, item?.Name);
+        log("Studio item lookup result:", item);
+        log("Studio item Type:", item?.Type, "Name:", item?.Name);
         if (item?.Type === "Studio" && item.Name) {
           await new Promise(r => setTimeout(r, 500));
           await loadStudioCatalog(item.Name);
         } else {
-          log("Not a studio or no name, skipping");
+          log("Not a studio or no name, skipping. Type was:", item?.Type);
         }
       }
 

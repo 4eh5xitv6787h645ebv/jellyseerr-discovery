@@ -1,5 +1,6 @@
 // Jellyseerr Discovery - Actor Filmography & Studio Catalogs
 // Shows content from Jellyseerr/TMDb on Person and Studio pages
+// Integrates with Jellyfin Enhanced for consistent card styling and modal
 (() => {
   "use strict";
 
@@ -14,14 +15,23 @@
   if (window.__JellyseerrDiscoveryV2) return;
   window.__JellyseerrDiscoveryV2 = true;
 
-  // Always log for debugging - can be disabled later
   const DEBUG = true;
-  const log = (...a) => (DEBUG || pluginConfig?.DebugMode) && console.log("[Discovery]", ...a);
+  const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.2.0.3");
+  console.log("[Discovery] Script loaded v1.4.0.0");
 
   let lastUrl = "";
   let isProcessing = false;
+  let pluginConfig = null;
+
+  // Icons matching Jellyfin Enhanced
+  const icons = {
+    star: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#fbbf24" style="width:1em;height:1em;vertical-align:middle;"><path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clip-rule="evenodd" /></svg>',
+    check: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" /></svg>',
+    clock: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" clip-rule="evenodd"></path></svg>',
+    partial: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM6.75 9.25a.75.75 0 000 1.5h6.5a.75.75 0 000-1.5h-6.5z" clip-rule="evenodd" /></svg>',
+    spinner: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>',
+  };
 
   function apiReady() {
     return !!(window.ApiClient && ApiClient.getUrl && ApiClient.accessToken && ApiClient.getCurrentUserId?.());
@@ -48,31 +58,30 @@
   }
 
   async function getItemInfo(itemId, retries = 3) {
-    if (!itemId) { log("getItemInfo: no itemId"); return null; }
+    if (!itemId) return null;
     const uid = ApiClient.getCurrentUserId?.();
-    log("getItemInfo: userId =", uid);
-    if (!uid) { log("getItemInfo: no userId"); return null; }
+    if (!uid) return null;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         const item = await ApiClient.getItem(uid, itemId);
-        if (item) {
-          log("getItemInfo: got item", item?.Type, item?.Name, "on attempt", attempt);
-          return item;
-        }
-        log("getItemInfo: null result, attempt", attempt);
+        if (item) return item;
       } catch (e) {
-        log("getItemInfo: error on attempt", attempt, e.message || e);
+        log("getItemInfo error:", e.message);
       }
-      if (attempt < retries) {
-        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
-      }
+      if (attempt < retries) await new Promise(r => setTimeout(r, 500));
     }
-    log("getItemInfo: all retries failed");
     return null;
   }
 
-  // Dedupe by tmdbId+mediaType
+  async function getPluginConfig() {
+    if (pluginConfig) return pluginConfig;
+    try {
+      pluginConfig = await fetchJson(ApiClient.getUrl(`${CONFIG.apiBase}/config`));
+      return pluginConfig || {};
+    } catch { return {}; }
+  }
+
   function dedupeItems(items) {
     const seen = new Set();
     return items.filter(item => {
@@ -83,365 +92,302 @@
     });
   }
 
-  // Keep Jellyseerr's order (popularity), just push items without poster/year to bottom
   function sortItems(items) {
-    const complete = [];
-    const incomplete = [];
-
+    const complete = [], incomplete = [];
     for (const item of items) {
       const hasPoster = !!item.posterPath;
       const hasYear = !!(item.releaseDate || item.firstAirDate);
-      if (hasPoster && hasYear) {
-        complete.push(item);
-      } else {
-        incomplete.push(item);
-      }
+      (hasPoster && hasYear ? complete : incomplete).push(item);
     }
-
     return [...complete, ...incomplete];
   }
 
-  // Config cache for plugin settings
-  let pluginConfig = null;
-  async function getPluginConfig() {
-    if (pluginConfig) return pluginConfig;
-    const url = ApiClient.getUrl(`${CONFIG.apiBase}/health`);
-    const data = await fetchJson(url);
-    pluginConfig = data || {};
-    return pluginConfig;
+  function filterTalkShows(items, exclude) {
+    if (!exclude) return items;
+    const talkShowGenres = [10767];
+    return items.filter(item => !item.genreIds?.some(g => talkShowGenres.includes(g)));
   }
 
-  // TMDb genre IDs for talk/news shows
-  const TALK_GENRE_IDS = [10767, 10763]; // Talk, News
-
-  // Title patterns for talk/award shows
-  const TALK_TITLE_PATTERNS = [
-    /\btonight show\b/i,
-    /\blate show\b/i,
-    /\blate night\b/i,
-    /\bdaily show\b/i,
-    /\btalk show\b/i,
-    /\bmorning show\b/i,
-    /\bawards?\b/i,
-    /\bemmy\b/i,
-    /\boscar\b/i,
-    /\bgolden globe\b/i,
-    /\bgrammys?\b/i,
-    /\bsag awards\b/i,
-    /\bbafta\b/i,
-    /\bcritics.?choice\b/i,
-    /\bpeople.?s choice\b/i,
-    /\bkelly clarkson show\b/i,
-    /\bellen\b.*\bshow\b/i,
-    /\bjimmy kimmel\b/i,
-    /\bjimmy fallon\b/i,
-    /\bstephen colbert\b/i,
-    /\bseth meyers\b/i,
-    /\bjames corden\b/i,
-    /\bconan\b/i,
-    /\bjohn oliver\b/i,
-    /\btrevor noah\b/i,
-    /\bwendy williams\b/i,
-    /\breal time with\b/i,
-    /\bdrew barrymore show\b/i,
-    /\bgood morning\b/i,
-    /\btoday show\b/i,
-    /\bthe view\b/i,
-    /\bthe talk\b/i,
-    /\blive with\b/i,
-    /\baccess hollywood\b/i,
-    /\bentertainment tonight\b/i,
-    /\bextra\b.*\btv\b/i,
-  ];
-
-  function isTalkOrAwardShow(item) {
-    // Check genre IDs
-    const genreIds = item.genreIds || [];
-    if (genreIds.some(id => TALK_GENRE_IDS.includes(id))) return true;
-
-    // Check genres by name
-    const genres = (item.genres || []).map(g => typeof g === "string" ? g : g.name || "").join(" ").toLowerCase();
-    if (genres.includes("talk") || genres.includes("news")) return true;
-
-    // Check title patterns
-    const title = (item.title || item.name || "").toLowerCase();
-    if (TALK_TITLE_PATTERNS.some(pattern => pattern.test(title))) return true;
-
-    return false;
+  // Check if Jellyfin Enhanced is available
+  function hasJellyfinEnhanced() {
+    return !!(window.JellyfinEnhanced?.jellyseerrMoreInfo?.open);
   }
 
-  // Filter out talk/award shows if enabled
-  function filterTalkShows(items, excludeTalkShows) {
-    if (!excludeTalkShows) return items;
-    return items.filter(item => !isTalkOrAwardShow(item));
+  // Get Jellyfin Enhanced reference
+  function getJE() {
+    return window.JellyfinEnhanced;
   }
 
-  // Use Jellyfin Enhanced's request modal (same as search results)
-  async function showRequestModal(item) {
-    const type = item.mediaType === "tv" ? "tv" : "movie";
-    const tmdbId = item.id || item.tmdbId;
-    const title = item.title || item.name || "Unknown";
-    const backdropPath = item.backdropPath || "";
-
-    const JE = window.JellyfinEnhanced;
-
-    // Check if Jellyfin Enhanced is available
-    if (!JE?.jellyseerrUI) {
-      log("Jellyfin Enhanced not available");
-      alert("Jellyfin Enhanced plugin is required for request functionality.");
-      return;
-    }
-
-    // Use Jellyfin Enhanced's request modals
-    if (type === "tv") {
-      // TV always shows season selection modal (it respects showAdvanced internally)
-      JE.jellyseerrUI.showSeasonSelectionModal(tmdbId, "tv", title, null);
-    } else {
-      // Movies: show modal with or without advanced options based on setting
-      if (JE.pluginConfig?.JellyseerrShowAdvanced) {
-        JE.jellyseerrUI.showMovieRequestModal(tmdbId, title, null, false);
-      } else {
-        // Simple confirmation modal without advanced options
-        const { modalElement, show, close } = JE.jellyseerrModal.create({
-          title: JE.t?.("jellyseerr_modal_title_movie") || "Request Movie",
-          subtitle: title,
-          bodyHtml: "",
-          backdropPath: backdropPath,
-          onSave: async (modalEl, requestBtn, closeFn) => {
-            requestBtn.disabled = true;
-            requestBtn.innerHTML = `${JE.t?.("jellyseerr_modal_requesting") || "Requesting..."}<span class="jellyseerr-button-spinner"></span>`;
-            try {
-              await JE.jellyseerrAPI.requestMedia(tmdbId, "movie", {}, false, null);
-              JE.toast?.(JE.t?.("jellyseerr_toast_requested") || "Request submitted!", 3000);
-              closeFn();
-            } catch (err) {
-              JE.toast?.(JE.t?.("jellyseerr_toast_request_failed") || "Request failed", 3000);
-              requestBtn.disabled = false;
-              requestBtn.textContent = JE.t?.("jellyseerr_modal_request") || "Request";
-            }
-          }
-        });
-        show();
-      }
-    }
-  }
-
-  // Create native Jellyfin-style card
-  function createCard(item) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "card portraitCard card-hoverable card-withuserdata seerr-card";
-    card.dataset.tmdbid = item.id || item.tmdbId;
-    card.dataset.mediatype = item.mediaType;
-    // Mark if item is "complete" (has both poster and year) for sorted insertion
-    const hasPoster = !!item.posterPath;
-    const hasYear = !!(item.releaseDate || item.firstAirDate);
-    card.dataset.complete = (hasPoster && hasYear) ? "1" : "0";
-
-    const title = item.title || item.name || "Unknown";
-    const year = (item.releaseDate || item.firstAirDate || "").substring(0, 4);
-    const posterUrl = item.posterPath ? `https://image.tmdb.org/t/p/w300${item.posterPath}` : "";
-    const rating = item.voteAverage ? item.voteAverage.toFixed(1) : "";
-
-    // Status indicator
-    let statusClass = "";
-    let statusIcon = "";
-    const status = item.mediaInfo?.status;
-    if (status === 5) { statusClass = "available"; statusIcon = "check_circle"; }
-    else if (status === 2 || status === 3) { statusClass = "requested"; statusIcon = "schedule"; }
-    else if (status === 4) { statusClass = "partial"; statusIcon = "downloading"; }
-
-    card.innerHTML = `
-      <div class="cardBox visualCardBox">
-        <div class="cardScalable visualCardBox-cardScalable">
-          <div class="cardPadder cardPadder-portrait"></div>
-          <div class="cardContent">
-            <div class="cardImageContainer coveredImage" style="background-color:#1a1a1a;">
-              ${posterUrl ? `<img class="cardImage cardImage-img lazy-image-fadein-fast" src="${posterUrl}" alt="${title}" loading="lazy" style="width:100%;height:100%;object-fit:cover;" />` : `<div class="cardImage" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#666;"><span class="material-icons" style="font-size:3em;">${item.mediaType === "tv" ? "tv" : "movie"}</span></div>`}
-              ${statusIcon ? `<div class="indicators seerr-status seerr-${statusClass}"><span class="material-icons">${statusIcon}</span></div>` : ""}
-              ${rating ? `<div class="indicators indicator-rating">${rating}</div>` : ""}
-            </div>
-          </div>
-        </div>
-        <div class="cardFooter visualCardBox-cardFooter">
-          <div class="cardText cardTextCentered">${title}</div>
-          <div class="cardText cardText-secondary cardTextCentered">${year}${item.character ? ` &bull; ${item.character}` : ""}</div>
-        </div>
-      </div>
-    `;
-
-    card.addEventListener("click", () => showRequestModal(item));
-
-    return card;
-  }
-
-  // Inject styles once
-  function injectStyles() {
-    if (document.getElementById("seerr-discovery-styles")) return;
-    const style = document.createElement("style");
-    style.id = "seerr-discovery-styles";
+  // Add discovery-specific styles (complementing Jellyfin Enhanced styles)
+  function addStyles() {
+    if (document.getElementById('discovery-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'discovery-styles';
     style.textContent = `
-      /* Minimal overrides - inherit skin styling */
-      .seerr-discovery-section .card.portraitCard { background: transparent; border: none; padding: 0; cursor: pointer; }
-      .seerr-discovery-section .card:hover .cardBox { transform: scale(1.03); transition: transform 0.15s; }
-      .seerr-discovery-section .card:focus { outline: 2px solid #00a4dc; outline-offset: 2px; }
-      .seerr-discovery-section .cardBox { background: transparent; }
-      .seerr-discovery-section .cardText-secondary { opacity: 0.7; }
-      .seerr-status { position: absolute; top: 0.3em; right: 0.3em; padding: 0.25em; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1; }
-      .seerr-status .material-icons { font-size: 1em; }
-      .seerr-available { background: rgba(76, 175, 80, 0.95); color: #fff; }
-      .seerr-requested { background: rgba(255, 152, 0, 0.95); color: #fff; }
-      .seerr-partial { background: rgba(156, 39, 176, 0.95); color: #fff; }
-      .indicator-rating { position: absolute; bottom: 0.3em; left: 0.3em; background: rgba(0,0,0,0.8); color: #ffd700; padding: 0.2em 0.5em; border-radius: 4px; font-size: 0.75em; font-weight: 600; }
+      .discovery-section { margin-bottom: 1.5em; }
+      .discovery-section .sectionTitle { font-size: 1.4em; font-weight: 500; margin-bottom: 0.6em; display: flex; align-items: center; gap: 0.5em; }
+      .discovery-section .itemsContainer { display: flex; flex-wrap: wrap; gap: 1em; }
+      .discovery-section .itemsContainer.scroll-horizontal { flex-wrap: nowrap; overflow-x: auto; scroll-behavior: smooth; padding-bottom: 10px; }
 
-      /* Simple Request Modal Styles */
-      .seerr-modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.65); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1em; }
-      .seerr-modal-simple { background: #303030; border-radius: 8px; padding: 1.5em 2em; max-width: 400px; width: 100%; text-align: left; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
-      .seerr-modal-heading { margin: 0 0 0.5em; font-size: 1.25em; font-weight: 600; color: #fff; }
-      .seerr-modal-item-title { margin: 0 0 0.75em; font-size: 1em; color: #ccc; }
-      .seerr-modal-question { margin: 0 0 1.25em; font-size: 0.95em; color: #aaa; }
-      .seerr-modal-buttons { display: flex; gap: 0.75em; justify-content: flex-end; }
-      .seerr-btn { padding: 0.65em 1.25em; border: none; border-radius: 6px; font-size: 0.95em; cursor: pointer; transition: background 0.2s; font-weight: 500; }
-      .seerr-btn-cancel { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
-      .seerr-btn-cancel:hover { background: rgba(255,255,255,0.12); }
-      .seerr-btn-request { background: #00a4dc; color: #fff; }
-      .seerr-btn-request:hover { background: #0090c4; }
-      .seerr-btn-request:disabled { background: #555; cursor: not-allowed; }
-      .seerr-btn-success { background: #4caf50 !important; }
+      /* Card styles matching Jellyfin Enhanced */
+      .discovery-card { position: relative; width: 170px; flex-shrink: 0; cursor: pointer; }
+      @media (min-width: 1200px) { .discovery-card { width: 185px; } }
+      @media (min-width: 1600px) { .discovery-card { width: 200px; } }
+      .discovery-card .cardBox { background: transparent; border-radius: 8px; overflow: visible; }
+      .discovery-card .cardScalable { position: relative; contain: paint; }
+      .discovery-card .cardPadder { padding-top: 150%; }
+      .discovery-card .cardImageContainer { position: absolute; inset: 0; border-radius: 8px; overflow: hidden; background: #1a1a1a; }
+      .discovery-card .cardImage { width: 100%; height: 100%; object-fit: cover; }
+      .discovery-card .cardImage-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #666; font-size: 3em; }
 
-      /* Loading indicator and infinite scroll */
-      .seerr-load-trigger { height: 1px; width: 100%; }
-      .seerr-loading-indicator { text-align: center; padding: 1.5em; color: #888; display: flex; align-items: center; justify-content: center; gap: 0.5em; width: 100%; }
-      @keyframes seerr-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      .seerr-spin { animation: seerr-spin 1s linear infinite; }
+      /* Status badge */
+      .discovery-status-badge { position: absolute; top: 8px; right: 8px; z-index: 100; width: 1.5em; height: 1.5em; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1.5px solid rgba(255,255,255,0.3); box-shadow: 0 0 1px rgba(255,255,255,0.4) inset, 0 4px 12px rgba(0,0,0,0.6); }
+      .discovery-status-badge svg { width: 1.4em; height: 1.4em; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6)); }
+      .discovery-status-badge.status-available { background-color: rgba(34, 197, 94, 0.7); border-color: rgba(34, 197, 94, 0.3); }
+      .discovery-status-badge.status-requested { background-color: rgba(136, 61, 206, 0.7); border-color: rgba(147, 51, 234, 0.3); }
+      .discovery-status-badge.status-pending { background-color: rgba(251, 146, 60, 0.7); border-color: rgba(251, 146, 60, 0.3); }
+      .discovery-status-badge.status-partial { background-color: rgba(34, 197, 94, 0.7); border-color: rgba(34, 197, 94, 0.3); }
+      .discovery-status-badge.status-processing { background-color: rgba(99, 102, 241, 0.7); border-color: rgba(99, 102, 241, 0.3); }
+      .discovery-status-badge.status-processing svg { animation: discovery-spin 1s linear infinite; }
+      @keyframes discovery-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+      /* Media type badge */
+      .discovery-media-badge { position: absolute; top: 8px; left: 8px; z-index: 100; color: #fff; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0,0,0,0.2); font-size: 0.75em; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8); backdrop-filter: blur(8px); }
+      .discovery-media-badge.movie { background-color: rgba(59, 130, 246, .9); box-shadow: 0 0 0 1px rgba(59,130,246,.35), 0 8px 24px rgba(59,130,246,.25); }
+      .discovery-media-badge.tv { background-color: rgba(243, 51, 214, .9); box-shadow: 0 0 0 1px rgba(236,72,153,.35), 0 8px 24px rgba(236,72,153,.25); }
+
+      /* Collection badge */
+      .discovery-collection-badge { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); z-index: 100; color: #fff; padding: 4px 12px; border-radius: 999px; font-size: 0.7em; font-weight: 600; display: flex; align-items: center; gap: 4px; background-color: rgba(16, 185, 129, .85); box-shadow: 0 0 0 1px rgba(16,185,129,.35); backdrop-filter: blur(8px); max-width: 90%; cursor: pointer; }
+      .discovery-collection-badge:hover { transform: translateX(-50%) translateY(-2px); box-shadow: 0 0 0 1px rgba(16,185,129,.5), 0 12px 32px rgba(16,185,129,.35); }
+      .discovery-collection-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .discovery-collection-badge .material-icons { font-size: 1.1em; }
+
+      /* Card text */
+      .discovery-card .cardText { text-align: center; padding: 0.4em 0.2em; font-size: 0.9em; }
+      .discovery-card .cardText-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .discovery-card .cardText-role { color: #aaa; font-size: 0.8em; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 0.2em; }
+      .discovery-card .cardText-meta { display: flex; justify-content: center; align-items: center; gap: 0.8em; color: #999; font-size: 0.85em; }
+      .discovery-card .cardText-meta .rating { display: flex; align-items: center; gap: 0.2em; }
+
+      /* Hover overlay */
+      .discovery-card .cardOverlay { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(0,0,0,.78) 75%, rgba(0,0,0,.92) 100%); color: #e5e7eb; padding: 12px; opacity: 0; pointer-events: none; transition: opacity 0.2s; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 8px; }
+      .discovery-card:hover .cardOverlay { opacity: 1; pointer-events: auto; }
+      .discovery-card .cardOverlay .overview { font-size: 0.75em; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+
+      /* Scroll navigation */
+      .discovery-section .scroll-nav { display: flex; gap: 0.5em; }
+      .discovery-section .scroll-nav button { background: rgba(255,255,255,0.1); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+      .discovery-section .scroll-nav button:hover { background: rgba(255,255,255,0.2); }
+
+      /* Infinite scroll trigger */
+      .discovery-load-trigger { width: 100%; height: 50px; }
+
+      /* Loading skeleton */
+      .discovery-skeleton { width: 170px; flex-shrink: 0; }
+      @media (min-width: 1200px) { .discovery-skeleton { width: 185px; } }
+      @media (min-width: 1600px) { .discovery-skeleton { width: 200px; } }
+      .discovery-skeleton .cardBox { background: #1a1a1a; border-radius: 8px; animation: discovery-pulse 1.5s ease-in-out infinite; }
+      .discovery-skeleton .cardPadder { padding-top: 150%; }
+      @keyframes discovery-pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.7; } }
     `;
     document.head.appendChild(style);
   }
 
-  // Pagination state for infinite scroll - allItems stores actual item objects, seenKeys for deduplication
-  let studioState = { name: "", page: 1, totalPages: 1, loading: false, allItems: [], seenKeys: new Set(), excludeTalkShows: true, observer: null };
+  // Create a card matching Jellyfin Enhanced style
+  function createCard(item) {
+    const card = document.createElement('div');
+    card.className = 'discovery-card card overflowPortraitCard card-hoverable card-withuserdata';
+    if (hasJellyfinEnhanced()) card.classList.add('jellyseerr-card');
 
-  function createSection(title, sectionId) {
-    const section = document.createElement("div");
-    section.id = sectionId;
-    section.className = "verticalSection verticalSection-cards seerr-discovery-section";
+    const tmdbId = item.id || item.tmdbId;
+    const mediaType = item.mediaType || 'movie';
+    const title = item.title || item.name || 'Unknown';
+    const year = (item.releaseDate || item.firstAirDate || '').substring(0, 4) || 'N/A';
+    const posterUrl = item.posterPath ? `https://image.tmdb.org/t/p/w300${item.posterPath}` : '';
+    const rating = item.voteAverage ? item.voteAverage.toFixed(1) : 'N/A';
+    const overview = item.overview || '';
 
-    section.innerHTML = `
-      <div class="sectionTitleContainer sectionTitleContainer-cards padded-left padded-right">
-        <h2 class="sectionTitle sectionTitle-cards">${title}</h2>
-      </div>
-      <div class="itemsContainer vertical-wrap padded-left padded-right"></div>
-      <div class="seerr-load-trigger"></div>
-      <div class="seerr-loading-indicator" style="display:none;">
-        <span class="material-icons seerr-spin">refresh</span> Loading more...
+    // Role info (character for cast, job for crew)
+    const role = item.character ? `as ${item.character}` : (item.job || '');
+
+    // Determine status
+    let statusHtml = '';
+    const status = item.mediaInfo?.status;
+    if (status === 5) {
+      statusHtml = `<div class="discovery-status-badge status-available">${icons.check}</div>`;
+    } else if (status === 2) {
+      statusHtml = `<div class="discovery-status-badge status-pending">${icons.clock}</div>`;
+    } else if (status === 3 || status === 7) {
+      const hasDownloads = item.mediaInfo?.downloadStatus?.length > 0;
+      statusHtml = hasDownloads
+        ? `<div class="discovery-status-badge status-processing">${icons.spinner}</div>`
+        : `<div class="discovery-status-badge status-requested">${icons.clock}</div>`;
+    } else if (status === 4) {
+      statusHtml = `<div class="discovery-status-badge status-partial">${icons.partial}</div>`;
+    }
+
+    // Media type badge
+    const mediaLabel = mediaType === 'tv' ? 'SERIES' : 'MOVIE';
+    const mediaBadgeClass = mediaType === 'tv' ? 'tv' : 'movie';
+
+    // Collection badge
+    let collectionHtml = '';
+    if (item.collection && mediaType === 'movie') {
+      collectionHtml = `<div class="discovery-collection-badge" data-collection-id="${item.collection.id}" data-collection-name="${item.collection.name || 'Collection'}"><span class="material-icons">collections</span><span>${item.collection.name || 'Collection'}</span></div>`;
+    }
+
+    card.innerHTML = `
+      <div class="cardBox cardBox-bottompadded">
+        <div class="cardScalable">
+          <div class="cardPadder"></div>
+          <div class="cardImageContainer coveredImage cardContent" style="${posterUrl ? `background-image: url('${posterUrl}');background-size:cover;` : ''}">
+            ${!posterUrl ? `<div class="cardImage-placeholder"><span class="material-icons">${mediaType === 'tv' ? 'tv' : 'movie'}</span></div>` : ''}
+            ${statusHtml}
+            <div class="discovery-media-badge ${mediaBadgeClass}">${mediaLabel}</div>
+            ${collectionHtml}
+            <div class="cardOverlay">
+              <div class="overview">${overview.slice(0, 300)}${overview.length > 300 ? '...' : ''}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cardText cardText-title"><bdi>${title}</bdi></div>
+        ${role ? `<div class="cardText cardText-role">${role}</div>` : ''}
+        <div class="cardText cardText-meta">
+          <span>${year}</span>
+          <span class="rating">${icons.star} ${rating}</span>
+        </div>
       </div>
     `;
 
-    return section;
-  }
+    // Mark complete/incomplete for sorting
+    const hasPoster = !!item.posterPath;
+    const hasYear = !!(item.releaseDate || item.firstAirDate);
+    card.dataset.complete = (hasPoster && hasYear) ? '1' : '0';
+    card.dataset.tmdbid = tmdbId;
+    card.dataset.mediatype = mediaType;
 
-  function appendCards(section, items, instant = false) {
-    const container = section.querySelector(".itemsContainer");
-    items.forEach((item, i) => {
-      const card = createCard(item);
-      if (instant) card.classList.add("seerr-instant");
-      else card.style.animationDelay = `${i * 0.03}s`;  // Stagger animation
-      container.appendChild(card);
+    // Click handler - open Jellyfin Enhanced modal if available
+    card.addEventListener('click', (e) => {
+      // Don't handle if clicking collection badge
+      if (e.target.closest('.discovery-collection-badge')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const badge = e.target.closest('.discovery-collection-badge');
+        const collectionId = badge.dataset.collectionId;
+        const collectionName = badge.dataset.collectionName;
+        const je = getJE();
+        if (je?.jellyseerrUI?.showCollectionRequestModal) {
+          je.jellyseerrUI.showCollectionRequestModal(parseInt(collectionId), collectionName, item);
+        } else if (je?.jellyseerrMoreInfo?.open) {
+          je.jellyseerrMoreInfo.open(parseInt(collectionId), 'collection');
+        }
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const je = getJE();
+      if (je?.jellyseerrMoreInfo?.open) {
+        log('Opening JE modal for', tmdbId, mediaType);
+        je.jellyseerrMoreInfo.open(parseInt(tmdbId), mediaType);
+      } else {
+        // Fallback: Try to open Jellyseerr URL
+        log('JE not available, trying fallback');
+        const config = pluginConfig;
+        if (config?.JellyseerrUrl) {
+          window.open(`${config.JellyseerrUrl}/${mediaType}/${tmdbId}`, '_blank');
+        }
+      }
     });
+
+    return card;
   }
 
-  // Create skeleton placeholder cards
   function createSkeletonCards(count) {
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < count; i++) {
-      const skeleton = document.createElement("div");
-      skeleton.className = "seerr-skeleton-card";
-      skeleton.innerHTML = `
-        <div class="seerr-skeleton seerr-skeleton-poster"></div>
-        <div class="seerr-skeleton seerr-skeleton-text"></div>
-        <div class="seerr-skeleton seerr-skeleton-text-small"></div>
-      `;
+      const skeleton = document.createElement('div');
+      skeleton.className = 'discovery-skeleton';
+      skeleton.innerHTML = '<div class="cardBox"><div class="cardPadder"></div></div>';
       fragment.appendChild(skeleton);
     }
     return fragment;
   }
 
   function removeSkeletons(section) {
-    section.querySelectorAll(".seerr-skeleton-card").forEach(el => el.remove());
+    section.querySelectorAll('.discovery-skeleton').forEach(el => el.remove());
   }
 
-  async function loadPersonFilmography(item) {
-    const tmdbId = item.ProviderIds?.Tmdb || item.ProviderIds?.tmdb;
-    if (!tmdbId) { log("No TMDb ID for", item.Name); return; }
+  // Create section container
+  function createSection(title, hasScroll = false) {
+    const section = document.createElement('div');
+    section.className = 'discovery-section verticalSection';
+    section.innerHTML = `
+      <div class="sectionTitleContainer flex align-items-center">
+        <h2 class="sectionTitle">${title}</h2>
+        ${hasScroll ? `
+          <div class="scroll-nav">
+            <button class="scroll-left paper-icon-button-light"><span class="material-icons">chevron_left</span></button>
+            <button class="scroll-right paper-icon-button-light"><span class="material-icons">chevron_right</span></button>
+          </div>
+        ` : ''}
+      </div>
+      <div class="itemsContainer ${hasScroll ? 'scroll-horizontal' : ''}"></div>
+    `;
 
-    log("Loading filmography for", item.Name, "TMDb:", tmdbId);
-
-    const detailPage = document.querySelector("#itemDetailPage:not(.hide)");
-    if (!detailPage) return;
-
-    // Remove existing
-    document.getElementById("seerr-discovery-person")?.remove();
-
-    // Find insertion point
-    const insertPoint = detailPage.querySelector(".detailPagePrimaryContainer") ||
-                       detailPage.querySelector(".detailPageContent");
-    if (!insertPoint) return;
-
-    // Show section with skeletons while loading
-    const section = createSection(`More from ${item.Name}`, "seerr-discovery-person");
-    const container = section.querySelector(".itemsContainer");
-    container.appendChild(createSkeletonCards(15));
-    insertPoint.appendChild(section);
-
-    // Fetch data
-    const url = ApiClient.getUrl(`${CONFIG.apiBase}/person/${tmdbId}`);
-    const [data, config] = await Promise.all([fetchJson(url), getPluginConfig()]);
-
-    // Remove skeletons
-    removeSkeletons(section);
-
-    if (!data?.Credits?.length) {
-      section.remove();
-      log("No credits found");
-      return;
+    if (hasScroll) {
+      const container = section.querySelector('.itemsContainer');
+      section.querySelector('.scroll-left').addEventListener('click', () => {
+        container.scrollBy({ left: -450, behavior: 'smooth' });
+      });
+      section.querySelector('.scroll-right').addEventListener('click', () => {
+        container.scrollBy({ left: 450, behavior: 'smooth' });
+      });
     }
 
-    const excludeTalkShows = config.ExcludeTalkShows !== false;
-    let credits = sortItems(dedupeItems(data.Credits));
-    credits = filterTalkShows(credits, excludeTalkShows);
-    log("Got", credits.length, "unique credits (after filtering)");
-
-    // Update title with count and add cards with animation
-    const titleEl = section.querySelector(".sectionTitle");
-    if (titleEl) titleEl.textContent = `More from ${item.Name} (${credits.length})`;
-
-    appendCards(section, credits.slice(0, 50));
+    return section;
   }
+
+  // Studio state for infinite scroll
+  let studioState = {
+    name: '',
+    page: 1,
+    totalPages: 1,
+    loading: false,
+    allItems: [],
+    seenKeys: new Set(),
+    observer: null,
+    excludeTalkShows: true
+  };
 
   async function loadMoreStudioItems() {
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
     studioState.loading = true;
-    const section = document.getElementById("seerr-discovery-studio");
-    const container = section?.querySelector(".itemsContainer");
+    const section = document.getElementById('discovery-studio-section');
+    const container = section?.querySelector('.itemsContainer');
     if (!section || !container) return;
 
-    // Show skeleton placeholders while loading
+    // Show skeletons
     const skeletons = createSkeletonCards(10);
-    container.appendChild(skeletons);
+    const trigger = container.querySelector('.discovery-load-trigger');
+    if (trigger) {
+      container.insertBefore(skeletons, trigger);
+    } else {
+      container.appendChild(skeletons);
+    }
 
     try {
       studioState.page++;
-      log("Loading page", studioState.page, "for", studioState.name);
+      log('Loading page', studioState.page);
 
       const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioState.name)}&page=${studioState.page}`);
       const data = await fetchJson(searchUrl);
 
-      // Remove skeletons
       removeSkeletons(section);
 
       if (data?.Items?.length) {
-        // Track which items are new for animation
         const newKeys = new Set();
 
         for (const item of dedupeItems(data.Items)) {
@@ -454,84 +400,73 @@
         }
 
         if (newKeys.size > 0) {
-          // Get new items and filter them
           const newItems = studioState.allItems.filter(item => {
             const key = `${item.mediaType}-${item.id || item.tmdbId}`;
             return newKeys.has(key);
           });
           const filteredNew = filterTalkShows(newItems, studioState.excludeTalkShows);
 
-          // Sort new items: complete (poster+year) first, incomplete last
-          const completeNew = [];
-          const incompleteNew = [];
+          // Sort: complete first, incomplete last
+          const completeNew = [], incompleteNew = [];
           for (const item of filteredNew) {
             const hasPoster = !!item.posterPath;
             const hasYear = !!(item.releaseDate || item.firstAirDate);
-            if (hasPoster && hasYear) {
-              completeNew.push(item);
-            } else {
-              incompleteNew.push(item);
-            }
+            (hasPoster && hasYear ? completeNew : incompleteNew).push(item);
           }
 
-          // Find the first incomplete card in the container (insertion point for complete items)
-          const firstIncomplete = container.querySelector('.seerr-card[data-complete="0"]');
+          // Find first incomplete card
+          const firstIncomplete = container.querySelector('.discovery-card[data-complete="0"]');
+          const loadTrigger = container.querySelector('.discovery-load-trigger');
 
-          // Insert complete items before first incomplete, or before load trigger if no incomplete
+          // Insert complete items
           let animIndex = 0;
           for (const item of completeNew) {
             const card = createCard(item);
             card.style.animationDelay = `${animIndex * 0.03}s`;
             if (firstIncomplete) {
               container.insertBefore(card, firstIncomplete);
-            } else {
-              // No incomplete items yet, insert before load trigger
-              const trigger = container.querySelector(".seerr-load-trigger");
-              if (trigger) {
-                container.insertBefore(card, trigger);
-              } else {
-                container.appendChild(card);
-              }
-            }
-            animIndex++;
-          }
-
-          // Append incomplete items at the end (before load trigger)
-          for (const item of incompleteNew) {
-            const card = createCard(item);
-            card.style.animationDelay = `${animIndex * 0.03}s`;
-            const trigger = container.querySelector(".seerr-load-trigger");
-            if (trigger) {
-              container.insertBefore(card, trigger);
+            } else if (loadTrigger) {
+              container.insertBefore(card, loadTrigger);
             } else {
               container.appendChild(card);
             }
             animIndex++;
           }
 
-          // Update title count
-          const totalDisplayed = container.querySelectorAll(".seerr-card").length;
-          const titleEl = section.querySelector(".sectionTitle");
+          // Append incomplete items
+          for (const item of incompleteNew) {
+            const card = createCard(item);
+            card.style.animationDelay = `${animIndex * 0.03}s`;
+            if (loadTrigger) {
+              container.insertBefore(card, loadTrigger);
+            } else {
+              container.appendChild(card);
+            }
+            animIndex++;
+          }
+
+          // Update count
+          const totalDisplayed = container.querySelectorAll('.discovery-card').length;
+          const titleEl = section.querySelector('.sectionTitle');
           if (titleEl) {
             titleEl.textContent = `More from ${studioState.name} on Jellyseerr (${totalDisplayed})`;
           }
-          log("Added", completeNew.length, "complete +", incompleteNew.length, "incomplete items, total:", totalDisplayed);
+          log('Added', completeNew.length + incompleteNew.length, 'items, total:', totalDisplayed);
         }
       }
     } catch (e) {
       removeSkeletons(section);
-      log("Error loading more:", e);
+      log('Error loading more:', e);
     } finally {
       studioState.loading = false;
 
-      // Check if we should keep loading (user scrolled fast past trigger)
+      // Check if trigger still in view (fast scroll)
       if (studioState.page < studioState.totalPages) {
-        const trigger = section.querySelector(".seerr-load-trigger");
+        const trigger = section.querySelector('.discovery-load-trigger');
         if (trigger) {
           const rect = trigger.getBoundingClientRect();
-          const inView = rect.top < window.innerHeight + 800; // Same margin as observer
-          if (inView) {
-            log("Trigger still in view, loading more...");
+          if (rect.top < window.innerHeight + 800) {
+            log('Trigger still in view, loading more...');
             setTimeout(() => loadMoreStudioItems(), 100);
           }
         }
@@ -539,23 +474,89 @@
     }
   }
 
-  async function loadStudioCatalog(studioName) {
-    log("Loading catalog for studio:", studioName);
+  async function loadPersonFilmography(item) {
+    const tmdbId = item.ProviderIds?.Tmdb || item.ProviderIds?.tmdb;
+    if (!tmdbId) { log('No TMDb ID for', item.Name); return; }
 
-    // Reset state and clean up old observer
-    if (studioState.observer) studioState.observer.disconnect();
+    log('Loading filmography for', item.Name, 'TMDb:', tmdbId);
 
-    // Search for studio by name
-    const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioName)}&page=1`);
-    log("Studio search URL:", searchUrl);
-    const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
-    log("Studio search result:", data);
-
-    if (!data?.Items?.length) { log("No items found for studio"); return; }
+    const url = ApiClient.getUrl(`${CONFIG.apiBase}/person/${tmdbId}`);
+    const [data, config] = await Promise.all([fetchJson(url), getPluginConfig()]);
 
     const excludeTalkShows = config.ExcludeTalkShows !== false;
 
-    // Initialize state with actual items (not just keys)
+    // Get cast (Appearances) and crew separately
+    let castCredits = data?.Cast || [];
+    let crewCredits = data?.Crew || [];
+
+    // Apply filtering and sorting
+    castCredits = filterTalkShows(sortItems(dedupeItems(castCredits)), excludeTalkShows);
+    crewCredits = filterTalkShows(sortItems(dedupeItems(crewCredits)), excludeTalkShows);
+
+    log('Got', castCredits.length, 'cast credits and', crewCredits.length, 'crew credits');
+
+    if (castCredits.length === 0 && crewCredits.length === 0) {
+      log('No credits found');
+      return;
+    }
+
+    // Remove existing sections
+    document.getElementById('discovery-person-appearances')?.remove();
+    document.getElementById('discovery-person-crew')?.remove();
+
+    // Find insert point - after the last verticalSection (Movies, Shows, Episodes)
+    const allSections = document.querySelectorAll('.verticalSection');
+    const lastSection = allSections[allSections.length - 1];
+    if (!lastSection) { log('No sections found'); return; }
+
+    let insertPoint = lastSection;
+
+    // Create Appearances section (cast credits) - vertical wrap layout
+    if (castCredits.length > 0) {
+      const appearancesSection = createSection(`Appearances (${castCredits.length})`, false);
+      appearancesSection.id = 'discovery-person-appearances';
+
+      const container = appearancesSection.querySelector('.itemsContainer');
+      castCredits.forEach((credit, i) => {
+        const card = createCard(credit);
+        card.style.animationDelay = `${i * 0.02}s`;
+        container.appendChild(card);
+      });
+
+      insertPoint.parentNode.insertBefore(appearancesSection, insertPoint.nextSibling);
+      insertPoint = appearancesSection;
+    }
+
+    // Create Crew section - vertical wrap layout
+    if (crewCredits.length > 0) {
+      const crewSection = createSection(`Crew (${crewCredits.length})`, false);
+      crewSection.id = 'discovery-person-crew';
+
+      const container = crewSection.querySelector('.itemsContainer');
+      crewCredits.forEach((credit, i) => {
+        const card = createCard(credit);
+        card.style.animationDelay = `${i * 0.02}s`;
+        container.appendChild(card);
+      });
+
+      insertPoint.parentNode.insertBefore(crewSection, insertPoint.nextSibling);
+    }
+  }
+
+  async function loadStudioCatalog(studioName) {
+    log('Loading catalog for studio:', studioName);
+
+    // Reset state
+    if (studioState.observer) studioState.observer.disconnect();
+
+    const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioName)}&page=1`);
+    const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
+
+    if (!data?.Items?.length) { log('No items found'); return; }
+
+    const excludeTalkShows = config.ExcludeTalkShows !== false;
+
+    // Initialize state
     const seenKeys = new Set();
     const allItems = [];
     for (const item of dedupeItems(data.Items)) {
@@ -571,158 +572,138 @@
       page: 1,
       totalPages: data.TotalPages || 1,
       loading: false,
-      allItems: allItems,
-      seenKeys: seenKeys,
+      allItems,
+      seenKeys,
       observer: null,
-      excludeTalkShows: excludeTalkShows
+      excludeTalkShows
     };
 
-    // Get filtered and sorted items for display
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);
-    log("Got", displayItems.length, "items (after filtering), total pages:", studioState.totalPages);
+    log('Got', displayItems.length, 'items, total pages:', studioState.totalPages);
 
     // Remove existing
-    document.getElementById("seerr-discovery-studio")?.remove();
+    document.getElementById('discovery-studio-section')?.remove();
 
-    // Find the correct studio list container - must have "centered" class (not the details page nextUpItems)
-    // Poll for up to 3 seconds waiting for the correct container
-    log("Looking for studio list container...");
+    // Find container - poll for correct element
     let pageContent = null;
     for (let i = 0; i < 15; i++) {
-      // Look specifically for the studio list page container (has "centered" class)
-      pageContent = document.querySelector(".itemsContainer.vertical-wrap.centered") ||
-                    document.querySelector(".padded-left.padded-right .itemsContainer.vertical-wrap");
-
-      // Make sure we're NOT finding a container from the details page
-      if (pageContent && !pageContent.classList.contains("nextUpItems")) {
-        log("Found studio list container on attempt", i + 1);
-        break;
-      }
+      pageContent = document.querySelector('.itemsContainer.vertical-wrap.centered') ||
+                    document.querySelector('.padded-left.padded-right .itemsContainer.vertical-wrap');
+      if (pageContent && !pageContent.classList.contains('nextUpItems')) break;
       pageContent = null;
-      if (i < 14) {
-        log("Waiting for studio list container... attempt", i + 1);
-        await new Promise(r => setTimeout(r, 200));
-      }
+      if (i < 14) await new Promise(r => setTimeout(r, 200));
     }
 
-    if (!pageContent) {
-      log("Could not find studio list container after polling");
-      return;
-    }
-    log("Found page content:", pageContent);
+    if (!pageContent) { log('No studio container found'); return; }
 
-    // Remove any existing discovery section first
-    const existingSection = document.querySelector(".seerr-discovery-studio");
-    if (existingSection) {
-      log("Removing existing studio discovery section");
-      existingSection.remove();
-    }
+    const section = createSection(`More from ${studioName} on Jellyseerr (${displayItems.length})`, false);
+    section.id = 'discovery-studio-section';
 
-    // Create section
-    const section = createSection(`More from ${studioName} on Jellyseerr (${displayItems.length})`, "seerr-discovery-studio");
-    appendCards(section, displayItems, true);  // instant=true for initial load
+    const container = section.querySelector('.itemsContainer');
+    displayItems.forEach((item, i) => {
+      const card = createCard(item);
+      card.style.animationDelay = `${i * 0.03}s`;
+      container.appendChild(card);
+    });
 
-    const parent = pageContent.parentElement;
-    log("Appending section to parent:", parent);
-    if (parent) {
-      parent.appendChild(section);
-      log("Section appended successfully");
-    } else {
-      log("ERROR: No parent element to append to!");
-    }
-
-    // Set up infinite scroll observer
+    // Add infinite scroll trigger
     if (studioState.totalPages > 1) {
-      const trigger = section.querySelector(".seerr-load-trigger");
+      const trigger = document.createElement('div');
+      trigger.className = 'discovery-load-trigger';
+      container.appendChild(trigger);
+
       studioState.observer = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && !studioState.loading) {
           loadMoreStudioItems();
         }
-      }, { rootMargin: "800px" });  // Preload early for smoother experience
+      }, { rootMargin: '800px' });
       studioState.observer.observe(trigger);
     }
+
+    // Insert AFTER the existing items container, not before
+    pageContent.parentNode.insertBefore(section, pageContent.nextSibling);
   }
 
-  async function checkAndLoad() {
-    if (!apiReady() || isProcessing) return;
-
-    const currentUrl = window.location.hash;
-    if (currentUrl === lastUrl) return;
-    lastUrl = currentUrl;
-
-    // Cleanup previous state
-    if (studioState.observer) {
-      studioState.observer.disconnect();
-      studioState.observer = null;
+  async function handleNavigation() {
+    const url = window.location.hash;
+    log('handleNavigation called, url:', url);
+    if (url === lastUrl || isProcessing) {
+      log('Skipping - same url or processing');
+      return;
     }
-    // Remove any stale discovery sections when URL changes
-    document.querySelectorAll(".seerr-discovery-studio, .seerr-discovery-section").forEach(el => el.remove());
-
-    const params = getHashParams();
-    log("checkAndLoad: URL =", currentUrl);
-    log("checkAndLoad: params =", params ? Array.from(params.entries()) : "null");
-    if (!params) return;
-
+    lastUrl = url;
     isProcessing = true;
-    injectStyles();
 
     try {
-      // Check for Person detail page
-      const itemId = params.get("id");
-      if (itemId && currentUrl.includes("details")) {
-        const item = await getItemInfo(itemId);
-        if (item?.Type === "Person") {
-          // Wait for page to render
-          await new Promise(r => setTimeout(r, 500));
-          await loadPersonFilmography(item);
-        }
+      if (!apiReady()) {
+        log('API not ready');
+        return;
       }
 
-      // Check for Studio list page - try multiple parameter names
-      const studioId = params.get("studioIds") || params.get("studioId") || params.get("studio");
-      log("checkAndLoad: studioId =", studioId);
-      if (studioId) {
-        log("Found studioId:", studioId);
+      addStyles();
+
+      const params = getHashParams();
+      const itemId = params?.get('id');
+      log('Parsed itemId:', itemId);
+
+      // Studio list page
+      const studioId = params?.get('studioId');
+      if (studioId && (url.includes('#/list') || url.includes('#!/list'))) {
         const item = await getItemInfo(studioId);
-        log("Studio item lookup result:", item);
-        log("Studio item Type:", item?.Type, "Name:", item?.Name);
-        if (item?.Type === "Studio" && item.Name) {
-          await new Promise(r => setTimeout(r, 500));
+        log('Studio list page, item:', item?.Type, item?.Name);
+        if (item?.Type === 'Studio') {
+          await loadStudioCatalog(item.Name);
+        }
+        return;
+      }
+
+      // Details page - check for both #/details and #!/details patterns
+      const isDetailsPage = url.includes('#/details') || url.includes('#!/details') || url.includes('#/item') || url.includes('#!/item');
+      log('Is details page:', isDetailsPage);
+
+      if (isDetailsPage) {
+        if (!itemId) {
+          log('No itemId found');
+          return;
+        }
+        const item = await getItemInfo(itemId);
+        log('Got item:', item?.Type, item?.Name);
+        if (!item) return;
+
+        if (item.Type === 'Person') {
+          log('Loading person filmography for', item.Name);
+          await loadPersonFilmography(item);
+        } else if (item.Type === 'Studio') {
+          log('Loading studio catalog for', item.Name);
           await loadStudioCatalog(item.Name);
         } else {
-          log("Not a studio or no name, skipping. Type was:", item?.Type);
+          log('Item type not handled:', item.Type);
         }
       }
-
     } catch (e) {
-      log("Error:", e);
+      log('Navigation error:', e);
     } finally {
       isProcessing = false;
     }
   }
 
-  // Listen for navigation
-  window.addEventListener("hashchange", () => { lastUrl = ""; checkAndLoad(); });
+  // Wait for API and start
+  function waitForApi() {
+    let tries = 0;
+    const check = setInterval(() => {
+      tries++;
+      if (apiReady()) {
+        clearInterval(check);
+        log('API ready, starting');
+        handleNavigation();
+        window.addEventListener('hashchange', handleNavigation);
+        document.addEventListener('viewshow', () => setTimeout(handleNavigation, 100));
+      } else if (tries > CONFIG.pollMax) {
+        clearInterval(check);
+        log('API timeout');
+      }
+    }, CONFIG.pollMs);
+  }
 
-  // Observe DOM for SPA navigation
-  let debounceTimer = null;
-  const mo = new MutationObserver(() => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(checkAndLoad, 300);
-  });
-  mo.observe(document.body, { childList: true, subtree: true });
-
-  // Init
-  (async () => {
-    console.log("[Discovery] Waiting for API...");
-    for (let i = 0; i < 40 && !apiReady(); i++) await new Promise(r => setTimeout(r, 200));
-    console.log("[Discovery] API ready:", apiReady());
-    if (apiReady()) {
-      injectStyles();
-      checkAndLoad();
-    } else {
-      console.log("[Discovery] API not ready after 8s, giving up");
-    }
-    log("Loaded v2");
-  })();
+  waitForApi();
 })();

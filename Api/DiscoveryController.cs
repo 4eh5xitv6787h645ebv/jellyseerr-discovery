@@ -52,7 +52,7 @@ public class DiscoveryController : ControllerBase
 
         _logger.LogInformation("Getting filmography for person {PersonId}", personId);
 
-        var (person, credits) = await _jellyseerrService.GetPersonWithCreditsAsync(personId);
+        var (person, cast, crew) = await _jellyseerrService.GetPersonWithCreditsAsync(personId);
 
         if (person == null)
         {
@@ -62,14 +62,20 @@ public class DiscoveryController : ControllerBase
         // Filter based on config
         if (!Config.IncludeLibraryItems)
         {
-            credits = credits.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+            cast = cast.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+            crew = crew.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
         }
+
+        // Combined credits for backwards compatibility
+        var allCredits = cast.Concat(crew).ToList();
 
         return Ok(new PersonDiscoveryResponse
         {
             Person = person,
-            Credits = credits,
-            TotalResults = credits.Count
+            Credits = allCredits,
+            Cast = cast,
+            Crew = crew,
+            TotalResults = allCredits.Count
         });
     }
 
@@ -103,7 +109,7 @@ public class DiscoveryController : ControllerBase
         var bestMatch = people.First();
 
         // Now get their filmography
-        var (person, credits) = await _jellyseerrService.GetPersonWithCreditsAsync(bestMatch.Id);
+        var (person, cast, crew) = await _jellyseerrService.GetPersonWithCreditsAsync(bestMatch.Id);
 
         if (person == null)
         {
@@ -113,14 +119,20 @@ public class DiscoveryController : ControllerBase
         // Filter based on config
         if (!Config.IncludeLibraryItems)
         {
-            credits = credits.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+            cast = cast.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
+            crew = crew.Where(c => c.MediaInfo?.IsAvailable != true).ToList();
         }
+
+        // Combined credits for backwards compatibility
+        var allCredits = cast.Concat(crew).ToList();
 
         return Ok(new PersonDiscoveryResponse
         {
             Person = person,
-            Credits = credits,
-            TotalResults = credits.Count
+            Credits = allCredits,
+            Cast = cast,
+            Crew = crew,
+            TotalResults = allCredits.Count
         });
     }
 
@@ -391,6 +403,8 @@ public class PersonDiscoveryResponse
 {
     public PersonDetails? Person { get; set; }
     public List<DiscoveryItem> Credits { get; set; } = new();
+    public List<DiscoveryItem> Cast { get; set; } = new();
+    public List<DiscoveryItem> Crew { get; set; } = new();
     public int TotalResults { get; set; }
 }
 

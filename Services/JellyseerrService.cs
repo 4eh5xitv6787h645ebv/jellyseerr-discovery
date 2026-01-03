@@ -18,9 +18,9 @@ public interface IJellyseerrService
     Task<PersonCredits?> GetPersonCreditsAsync(int personId);
 
     /// <summary>
-    /// Get person details with credits
+    /// Get person details with credits (cast and crew separate)
     /// </summary>
-    Task<(PersonDetails? Person, List<DiscoveryItem> Credits)> GetPersonWithCreditsAsync(int personId);
+    Task<(PersonDetails? Person, List<DiscoveryItem> Cast, List<DiscoveryItem> Crew)> GetPersonWithCreditsAsync(int personId);
 
     /// <summary>
     /// Get studio/company details by TMDb ID
@@ -226,7 +226,7 @@ public class JellyseerrService : IJellyseerrService
         }
     }
 
-    public async Task<(PersonDetails? Person, List<DiscoveryItem> Credits)> GetPersonWithCreditsAsync(int personId)
+    public async Task<(PersonDetails? Person, List<DiscoveryItem> Cast, List<DiscoveryItem> Crew)> GetPersonWithCreditsAsync(int personId)
     {
         var personTask = GetPersonAsync(personId);
         var creditsTask = GetPersonCreditsAsync(personId);
@@ -236,7 +236,9 @@ public class JellyseerrService : IJellyseerrService
         var person = await personTask;
         var credits = await creditsTask;
 
-        var allCredits = new List<DiscoveryItem>();
+        var castCredits = new List<DiscoveryItem>();
+        var crewCredits = new List<DiscoveryItem>();
+        var seenCrewKeys = new HashSet<string>();
 
         if (credits != null)
         {
@@ -244,37 +246,43 @@ public class JellyseerrService : IJellyseerrService
             foreach (var item in credits.Cast)
             {
                 item.MediaType = string.IsNullOrEmpty(item.Title) ? "tv" : "movie";
-                allCredits.Add(item);
+                castCredits.Add(item);
             }
 
-            // Add crew credits (director, producer, etc.) if it's their known department
-            if (person?.KnownForDepartment != "Acting")
+            // Add crew credits (deduplicated)
+            foreach (var item in credits.Crew)
             {
-                foreach (var item in credits.Crew)
+                item.MediaType = string.IsNullOrEmpty(item.Title) ? "tv" : "movie";
+                var key = $"{item.MediaType}-{item.TmdbId}";
+                if (!seenCrewKeys.Contains(key))
                 {
-                    item.MediaType = string.IsNullOrEmpty(item.Title) ? "tv" : "movie";
-                    // Avoid duplicates
-                    if (!allCredits.Any(c => c.TmdbId == item.TmdbId && c.MediaType == item.MediaType))
-                    {
-                        allCredits.Add(item);
-                    }
+                    seenCrewKeys.Add(key);
+                    crewCredits.Add(item);
                 }
             }
         }
 
         // Sort by popularity/vote count
-        allCredits = allCredits
+        castCredits = castCredits
+            .OrderByDescending(c => c.Popularity ?? 0)
+            .ThenByDescending(c => c.VoteCount ?? 0)
+            .ToList();
+
+        crewCredits = crewCredits
             .OrderByDescending(c => c.Popularity ?? 0)
             .ThenByDescending(c => c.VoteCount ?? 0)
             .ToList();
 
         // Apply max results limit
-        if (Config.MaxResults > 0 && allCredits.Count > Config.MaxResults)
+        if (Config.MaxResults > 0)
         {
-            allCredits = allCredits.Take(Config.MaxResults).ToList();
+            if (castCredits.Count > Config.MaxResults)
+                castCredits = castCredits.Take(Config.MaxResults).ToList();
+            if (crewCredits.Count > Config.MaxResults)
+                crewCredits = crewCredits.Take(Config.MaxResults).ToList();
         }
 
-        return (person, allCredits);
+        return (person, castCredits, crewCredits);
     }
 
     public async Task<StudioDetails?> GetStudioAsync(int studioId)

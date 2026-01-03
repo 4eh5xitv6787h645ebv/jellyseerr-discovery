@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.5.5.0",
+        "changelog": "Fix infinite scroll stopping - schedule retry when throttled or trigger stays visible",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.5.5.0/JellyseerrDiscovery.zip",
+        "checksum": "a69544496187a5b777d9b5b6324efeff",
+        "timestamp": "2026-01-03T15:20:00Z"
+      },
+      {
         "version": "1.5.4.0",
         "changelog": "Smart infinite scroll throttle - 4s delay at bottom, 1s after scrolling",
         "targetAbi": "10.11.0.0",

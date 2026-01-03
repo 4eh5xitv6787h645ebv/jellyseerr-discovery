@@ -48,10 +48,18 @@
   }
 
   async function getItemInfo(itemId) {
-    if (!itemId) return null;
+    if (!itemId) { log("getItemInfo: no itemId"); return null; }
     const uid = ApiClient.getCurrentUserId?.();
-    if (!uid) return null;
-    try { return await ApiClient.getItem(uid, itemId); } catch { return null; }
+    log("getItemInfo: userId =", uid);
+    if (!uid) { log("getItemInfo: no userId"); return null; }
+    try {
+      const item = await ApiClient.getItem(uid, itemId);
+      log("getItemInfo: got item", item?.Type, item?.Name);
+      return item;
+    } catch (e) {
+      log("getItemInfo: error", e.message || e);
+      return null;
+    }
   }
 
   // Dedupe by tmdbId+mediaType

@@ -517,11 +517,15 @@
       appearancesSection.id = 'discovery-person-appearances';
 
       const container = appearancesSection.querySelector('.itemsContainer');
+      // Use DocumentFragment for batch DOM insertion (reduces reflows)
+      const fragment = document.createDocumentFragment();
       castCredits.forEach((credit, i) => {
         const card = createCard(credit);
-        card.style.animationDelay = `${i * 0.02}s`;
-        container.appendChild(card);
+        // Cap animation delay to first 20 cards for performance
+        if (i < 20) card.style.animationDelay = `${i * 0.02}s`;
+        fragment.appendChild(card);
       });
+      container.appendChild(fragment);
 
       insertPoint.parentNode.insertBefore(appearancesSection, insertPoint.nextSibling);
       insertPoint = appearancesSection;
@@ -533,11 +537,14 @@
       crewSection.id = 'discovery-person-crew';
 
       const container = crewSection.querySelector('.itemsContainer');
+      // Use DocumentFragment for batch DOM insertion
+      const fragment = document.createDocumentFragment();
       crewCredits.forEach((credit, i) => {
         const card = createCard(credit);
-        card.style.animationDelay = `${i * 0.02}s`;
-        container.appendChild(card);
+        if (i < 20) card.style.animationDelay = `${i * 0.02}s`;
+        fragment.appendChild(card);
       });
+      container.appendChild(fragment);
 
       insertPoint.parentNode.insertBefore(crewSection, insertPoint.nextSibling);
     }
@@ -600,11 +607,15 @@
     section.id = 'discovery-studio-section';
 
     const container = section.querySelector('.itemsContainer');
+    // Use DocumentFragment for batch DOM insertion
+    const fragment = document.createDocumentFragment();
     displayItems.forEach((item, i) => {
       const card = createCard(item);
-      card.style.animationDelay = `${i * 0.03}s`;
-      container.appendChild(card);
+      // Cap animation delay to first 15 cards for performance
+      if (i < 15) card.style.animationDelay = `${i * 0.03}s`;
+      fragment.appendChild(card);
     });
+    container.appendChild(fragment);
 
     // Add infinite scroll trigger
     if (studioState.totalPages > 1) {

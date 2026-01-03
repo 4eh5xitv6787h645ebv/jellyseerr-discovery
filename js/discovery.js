@@ -14,7 +14,11 @@
   if (window.__JellyseerrDiscoveryV2) return;
   window.__JellyseerrDiscoveryV2 = true;
 
-  const log = (...a) => pluginConfig?.DebugMode && console.log("[Discovery]", ...a);
+  // Always log for debugging - can be disabled later
+  const DEBUG = true;
+  const log = (...a) => (DEBUG || pluginConfig?.DebugMode) && console.log("[Discovery]", ...a);
+
+  console.log("[Discovery] Script loaded v1.2.0.3");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -626,8 +630,15 @@
 
   // Init
   (async () => {
+    console.log("[Discovery] Waiting for API...");
     for (let i = 0; i < 40 && !apiReady(); i++) await new Promise(r => setTimeout(r, 200));
-    if (apiReady()) { injectStyles(); checkAndLoad(); }
+    console.log("[Discovery] API ready:", apiReady());
+    if (apiReady()) {
+      injectStyles();
+      checkAndLoad();
+    } else {
+      console.log("[Discovery] API not ready after 8s, giving up");
+    }
     log("Loaded v2");
   })();
 })();

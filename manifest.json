@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.2.1.1",
+        "changelog": "Fix flicker and fast scroll - only append new items, check trigger visibility after load",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.2.1.1/JellyseerrDiscovery.zip",
+        "checksum": "b41bf2667237a58b11e999cb4dd1bf68",
+        "timestamp": "2026-01-03T16:00:00Z"
+      },
+      {
         "version": "1.2.0.9",
         "changelog": "Fix SPA navigation - poll for correct studio list container, ignore details page elements",
         "targetAbi": "10.11.0.0",

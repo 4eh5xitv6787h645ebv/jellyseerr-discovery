@@ -12,7 +12,7 @@
         "changelog": "Fix infinite scroll: require trigger to leave viewport before next load",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.5.3.0/JellyseerrDiscovery.zip",
-        "checksum": "c7e02a9faa45d4d564ebabd64396fe2d",
+        "checksum": "194c5cf6ca1f72626ba791aa2b736cad",
         "timestamp": "2026-01-03T13:10:00Z"
       },
       {

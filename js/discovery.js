@@ -18,7 +18,7 @@
   let DEBUG = false; // Will be set from config.DebugMode
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.5.1.0");
+  console.log("[Discovery] Script loaded v1.5.2.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -386,8 +386,8 @@
     seenKeys: new Set(),
     observer: null,
     excludeTalkShows: true,
-    lastScrollY: 0,
-    lastLoadTime: 0
+    userScrolled: false,
+    scrollHandler: null
   };
 
   async function loadMoreStudioItems() {
@@ -395,13 +395,21 @@
     if (!studioState.enableInfiniteScroll) return;
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
-    // Prevent rapid-fire loading - require at least 500ms between loads
-    const now = Date.now();
-    if (now - studioState.lastLoadTime < 500) return;
+    // IMPORTANT: Require user to have scrolled before loading more
+    // This prevents infinite loading when stuck at bottom
+    if (!studioState.userScrolled) {
+      log('Waiting for user scroll before loading more');
+      return;
+    }
 
     studioState.loading = true;
-    studioState.lastLoadTime = now;
-    studioState.lastScrollY = window.scrollY;
+    studioState.userScrolled = false; // Reset - require scroll again for next load
+
+    // Disconnect observer while loading to prevent re-triggering
+    if (studioState.observer) {
+      studioState.observer.disconnect();
+    }
+
     const section = document.getElementById('discovery-studio-section');
     const container = section?.querySelector('.itemsContainer');
     if (!section || !container) return;
@@ -500,20 +508,15 @@
     } finally {
       studioState.loading = false;
 
-      // Only auto-load more if user has scrolled down since last load
-      // This prevents infinite loading when stuck at the bottom
+      // Reconnect observer after a delay to allow content to settle
       if (studioState.page < studioState.totalPages) {
-        const scrolledDown = window.scrollY > studioState.lastScrollY + 50;
-        if (scrolledDown) {
-          const trigger = section.querySelector('.discovery-load-trigger');
-          if (trigger) {
-            const rect = trigger.getBoundingClientRect();
-            if (rect.top < window.innerHeight) {
-              log('User scrolled and trigger in view, loading more...');
-              setTimeout(() => loadMoreStudioItems(), 500);
-            }
+        setTimeout(() => {
+          const trigger = section?.querySelector('.discovery-load-trigger');
+          if (trigger && studioState.observer) {
+            studioState.observer.observe(trigger);
+            log('Observer reconnected');
           }
-        }
+        }, 300);
       }
     }
   }
@@ -677,6 +680,16 @@
       }
     }
 
+    // Clean up previous scroll handler if exists
+    if (studioState.scrollHandler) {
+      window.removeEventListener('scroll', studioState.scrollHandler);
+    }
+
+    // Create scroll handler to detect user scrolling
+    const scrollHandler = () => {
+      studioState.userScrolled = true;
+    };
+
     studioState = {
       name: studioName,
       page: 1,
@@ -687,8 +700,13 @@
       observer: null,
       excludeTalkShows,
       enableInfiniteScroll,
-      config
+      config,
+      userScrolled: true, // Allow first load without scroll
+      scrollHandler
     };
+
+    // Add scroll listener
+    window.addEventListener('scroll', scrollHandler, { passive: true });
 
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);
     log('Got', displayItems.length, 'items, total pages:', studioState.totalPages);

@@ -18,7 +18,7 @@
   let DEBUG = false; // Will be set from config.DebugMode
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.5.0.0");
+  console.log("[Discovery] Script loaded v1.5.1.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -385,7 +385,9 @@
     allItems: [],
     seenKeys: new Set(),
     observer: null,
-    excludeTalkShows: true
+    excludeTalkShows: true,
+    lastScrollY: 0,
+    lastLoadTime: 0
   };
 
   async function loadMoreStudioItems() {
@@ -393,7 +395,13 @@
     if (!studioState.enableInfiniteScroll) return;
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
+    // Prevent rapid-fire loading - require at least 500ms between loads
+    const now = Date.now();
+    if (now - studioState.lastLoadTime < 500) return;
+
     studioState.loading = true;
+    studioState.lastLoadTime = now;
+    studioState.lastScrollY = window.scrollY;
     const section = document.getElementById('discovery-studio-section');
     const container = section?.querySelector('.itemsContainer');
     if (!section || !container) return;
@@ -492,14 +500,18 @@
     } finally {
       studioState.loading = false;
 
-      // Check if trigger still in view (fast scroll)
+      // Only auto-load more if user has scrolled down since last load
+      // This prevents infinite loading when stuck at the bottom
       if (studioState.page < studioState.totalPages) {
-        const trigger = section.querySelector('.discovery-load-trigger');
-        if (trigger) {
-          const rect = trigger.getBoundingClientRect();
-          if (rect.top < window.innerHeight + 800) {
-            log('Trigger still in view, loading more...');
-            setTimeout(() => loadMoreStudioItems(), 100);
+        const scrolledDown = window.scrollY > studioState.lastScrollY + 50;
+        if (scrolledDown) {
+          const trigger = section.querySelector('.discovery-load-trigger');
+          if (trigger) {
+            const rect = trigger.getBoundingClientRect();
+            if (rect.top < window.innerHeight) {
+              log('User scrolled and trigger in view, loading more...');
+              setTimeout(() => loadMoreStudioItems(), 500);
+            }
           }
         }
       }
@@ -724,7 +736,7 @@
         if (entries[0].isIntersecting && !studioState.loading) {
           loadMoreStudioItems();
         }
-      }, { rootMargin: '800px' });
+      }, { rootMargin: '400px' });  // Reduced from 800px to prevent aggressive loading
       studioState.observer.observe(trigger);
     }
 

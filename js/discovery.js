@@ -553,19 +553,31 @@
     // Remove existing
     document.getElementById("seerr-discovery-studio")?.remove();
 
-    // Find the page content area - try multiple selectors
-    log("Looking for page content container...");
-    log("  .pageWithAbsoluteTabs .itemsContainer:", document.querySelector(".pageWithAbsoluteTabs .itemsContainer"));
-    log("  .itemsContainer.vertical-wrap:", document.querySelector(".itemsContainer.vertical-wrap"));
-    log("  .itemsContainer:", document.querySelector(".itemsContainer"));
-    log("  .verticalSection:", document.querySelector(".verticalSection"));
-    log("  #itemDetailPage:", document.querySelector("#itemDetailPage"));
+    // Find the correct studio list container - must have "centered" class (not the details page nextUpItems)
+    // Poll for up to 3 seconds waiting for the correct container
+    log("Looking for studio list container...");
+    let pageContent = null;
+    for (let i = 0; i < 15; i++) {
+      // Look specifically for the studio list page container (has "centered" class)
+      pageContent = document.querySelector(".itemsContainer.vertical-wrap.centered") ||
+                    document.querySelector(".padded-left.padded-right .itemsContainer.vertical-wrap");
 
-    const pageContent = document.querySelector(".pageWithAbsoluteTabs .itemsContainer") ||
-                       document.querySelector(".itemsContainer.vertical-wrap") ||
-                       document.querySelector(".itemsContainer") ||
-                       document.querySelector(".verticalSection");
-    if (!pageContent) { log("Could not find items container - no valid selector found"); return; }
+      // Make sure we're NOT finding a container from the details page
+      if (pageContent && !pageContent.classList.contains("nextUpItems")) {
+        log("Found studio list container on attempt", i + 1);
+        break;
+      }
+      pageContent = null;
+      if (i < 14) {
+        log("Waiting for studio list container... attempt", i + 1);
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+
+    if (!pageContent) {
+      log("Could not find studio list container after polling");
+      return;
+    }
     log("Found page content:", pageContent);
 
     // Remove any existing discovery section first

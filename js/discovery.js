@@ -47,19 +47,29 @@
     try { return q ? new URLSearchParams(q) : null; } catch { return null; }
   }
 
-  async function getItemInfo(itemId) {
+  async function getItemInfo(itemId, retries = 3) {
     if (!itemId) { log("getItemInfo: no itemId"); return null; }
     const uid = ApiClient.getCurrentUserId?.();
     log("getItemInfo: userId =", uid);
     if (!uid) { log("getItemInfo: no userId"); return null; }
-    try {
-      const item = await ApiClient.getItem(uid, itemId);
-      log("getItemInfo: got item", item?.Type, item?.Name);
-      return item;
-    } catch (e) {
-      log("getItemInfo: error", e.message || e);
-      return null;
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const item = await ApiClient.getItem(uid, itemId);
+        if (item) {
+          log("getItemInfo: got item", item?.Type, item?.Name, "on attempt", attempt);
+          return item;
+        }
+        log("getItemInfo: null result, attempt", attempt);
+      } catch (e) {
+        log("getItemInfo: error on attempt", attempt, e.message || e);
+      }
+      if (attempt < retries) {
+        await new Promise(r => setTimeout(r, 500)); // Wait 500ms before retry
+      }
     }
+    log("getItemInfo: all retries failed");
+    return null;
   }
 
   // Dedupe by tmdbId+mediaType

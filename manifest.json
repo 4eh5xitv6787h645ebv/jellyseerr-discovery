@@ -8,12 +8,12 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.4.1.0",
-        "changelog": "Performance: Batch DOM insertion with DocumentFragment, cap animation delays for faster render (~160ms for 100 cards)",
+        "version": "1.4.2.0",
+        "changelog": "Fix studio lookup fallback - get studio name from items when direct API fails",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.4.1.0/JellyseerrDiscovery.zip",
-        "checksum": "3628706fe1700a4018397fb0e65f8999",
-        "timestamp": "2026-01-03T19:50:00Z"
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.4.2.0/JellyseerrDiscovery.zip",
+        "checksum": "946dad16a3bf80f38fc763c931893197",
+        "timestamp": "2026-01-03T21:10:00Z"
       },
       {
         "version": "1.4.0.0",

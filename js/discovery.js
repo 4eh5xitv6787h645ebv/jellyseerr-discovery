@@ -18,7 +18,7 @@
   const DEBUG = true;
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.4.0.0");
+  console.log("[Discovery] Script loaded v1.4.2.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -660,10 +660,38 @@
       // Studio list page
       const studioId = params?.get('studioId');
       if (studioId && (url.includes('#/list') || url.includes('#!/list'))) {
+        let studioName = null;
+
+        // Try direct item lookup first
         const item = await getItemInfo(studioId);
-        log('Studio list page, item:', item?.Type, item?.Name);
         if (item?.Type === 'Studio') {
-          await loadStudioCatalog(item.Name);
+          studioName = item.Name;
+        }
+
+        // If that fails, get studio name from an item that belongs to this studio
+        if (!studioName) {
+          try {
+            const uid = ApiClient.getCurrentUserId?.();
+            const itemsUrl = ApiClient.getUrl('Items', {
+              userId: uid,
+              StudioIds: studioId,
+              Recursive: true,
+              Fields: 'Studios',
+              Limit: 1
+            });
+            const resp = await fetchJson(itemsUrl);
+            if (resp?.Items?.[0]?.Studios) {
+              const studio = resp.Items[0].Studios.find(s => s.Id === studioId);
+              if (studio) studioName = studio.Name;
+            }
+          } catch (e) {
+            log('Studio lookup from items failed:', e.message);
+          }
+        }
+
+        log('Studio list page, studioName:', studioName);
+        if (studioName) {
+          await loadStudioCatalog(studioName);
         }
         return;
       }

@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.5.0.0",
+        "changelog": "Add user-configurable settings for discovery display options (cast/crew, badges, ratings, year, hover overlays, infinite scroll)",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.5.0.0/JellyseerrDiscovery.zip",
+        "checksum": "f8fe17ac7050b738a6a4c513600a0d24",
+        "timestamp": "2026-01-03T12:28:00Z"
+      },
+      {
         "version": "1.4.3.0",
         "changelog": "Fix studio lookup fallback - get studio name from items when direct API fails",
         "targetAbi": "10.11.0.0",

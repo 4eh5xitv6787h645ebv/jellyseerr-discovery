@@ -568,10 +568,25 @@
     if (!pageContent) { log("Could not find items container - no valid selector found"); return; }
     log("Found page content:", pageContent);
 
+    // Remove any existing discovery section first
+    const existingSection = document.querySelector(".seerr-discovery-studio");
+    if (existingSection) {
+      log("Removing existing studio discovery section");
+      existingSection.remove();
+    }
+
     // Create section
     const section = createSection(`More from ${studioName} on Jellyseerr (${displayItems.length})`, "seerr-discovery-studio");
     appendCards(section, displayItems, true);  // instant=true for initial load
-    pageContent.parentElement?.appendChild(section);
+
+    const parent = pageContent.parentElement;
+    log("Appending section to parent:", parent);
+    if (parent) {
+      parent.appendChild(section);
+      log("Section appended successfully");
+    } else {
+      log("ERROR: No parent element to append to!");
+    }
 
     // Set up infinite scroll observer
     if (studioState.totalPages > 1) {
@@ -591,6 +606,14 @@
     const currentUrl = window.location.hash;
     if (currentUrl === lastUrl) return;
     lastUrl = currentUrl;
+
+    // Cleanup previous state
+    if (studioState.observer) {
+      studioState.observer.disconnect();
+      studioState.observer = null;
+    }
+    // Remove any stale discovery sections when URL changes
+    document.querySelectorAll(".seerr-discovery-studio, .seerr-discovery-section").forEach(el => el.remove());
 
     const params = getHashParams();
     log("checkAndLoad: URL =", currentUrl);

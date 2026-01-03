@@ -3,8 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <RootNamespace>JellyseerrDiscovery</RootNamespace>
-    <AssemblyVersion>1.2.0.7</AssemblyVersion>
-    <FileVersion>1.2.0.7</FileVersion>
+    <AssemblyVersion>1.2.0.8</AssemblyVersion>
+    <FileVersion>1.2.0.8</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>

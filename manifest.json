@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.2.1.2",
+        "changelog": "Sort items without flicker - incomplete items (no poster/year) appear at bottom",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.2.1.2/JellyseerrDiscovery.zip",
+        "checksum": "7401ee5e639f52b9d520a89717cb0cfa",
+        "timestamp": "2026-01-03T17:00:00Z"
+      },
+      {
         "version": "1.2.1.1",
         "changelog": "Fix flicker and fast scroll - only append new items, check trigger visibility after load",
         "targetAbi": "10.11.0.0",

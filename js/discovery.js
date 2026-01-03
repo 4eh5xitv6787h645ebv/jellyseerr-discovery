@@ -24,7 +24,7 @@
   let isProcessing = false;
 
   function apiReady() {
-    return !!(window.ApiClient && ApiClient.getUrl && ApiClient.accessToken);
+    return !!(window.ApiClient && ApiClient.getUrl && ApiClient.accessToken && ApiClient.getCurrentUserId?.());
   }
 
   function getTokenHeaders() {

@@ -8,6 +8,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.2.0.7",
+        "changelog": "Fix userId timing - wait for getCurrentUserId in apiReady check",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.2.0.7/JellyseerrDiscovery.zip",
+        "checksum": "01f06e8d4036fe0e020727156844b5a8",
+        "timestamp": "2026-01-02T18:15:00Z"
+      },
+      {
         "version": "1.2.0.6",
         "changelog": "Fix timing issue - retry getItemInfo up to 3 times with 500ms delay",
         "targetAbi": "10.11.0.0",

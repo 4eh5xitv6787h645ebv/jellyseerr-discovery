@@ -366,31 +366,6 @@
     section.querySelectorAll(".seerr-skeleton-card").forEach(el => el.remove());
   }
 
-  // Re-render ALL studio items sorted - called when new items are loaded
-  function renderAllStudioItems() {
-    const section = document.getElementById("seerr-discovery-studio");
-    if (!section) { log("renderAllStudioItems: section not found"); return; }
-
-    const container = section.querySelector(".itemsContainer");
-    if (!container) { log("renderAllStudioItems: container not found"); return; }
-
-    log("renderAllStudioItems: sorting", studioState.allItems.length, "total items");
-
-    // Clear and re-render with ALL items sorted
-    container.innerHTML = "";
-
-    // Sort and filter ALL accumulated items (keeps Jellyseerr order, pushes incomplete to bottom)
-    const sortedItems = filterTalkShows(sortItems(studioState.allItems), studioState.excludeTalkShows);
-    sortedItems.forEach(item => container.appendChild(createCard(item)));
-
-    // Update title with new count
-    const titleEl = section.querySelector(".sectionTitle");
-    if (titleEl) {
-      titleEl.textContent = `More from ${studioState.name} on Jellyseerr (${sortedItems.length})`;
-    }
-    log("renderAllStudioItems: rendered", sortedItems.length, "items");
-  }
-
   async function loadPersonFilmography(item) {
     const tmdbId = item.ProviderIds?.Tmdb || item.ProviderIds?.tmdb;
     if (!tmdbId) { log("No TMDb ID for", item.Name); return; }
@@ -475,29 +450,27 @@
         }
 
         if (newKeys.size > 0) {
-          // Re-render all items sorted, but only animate new ones
-          container.innerHTML = "";
-          const sortedItems = filterTalkShows(sortItems(studioState.allItems), studioState.excludeTalkShows);
-
-          let animIndex = 0;
-          sortedItems.forEach(item => {
-            const card = createCard(item);
+          // Only append NEW items - don't re-render existing ones to avoid flicker
+          const newItems = studioState.allItems.filter(item => {
             const key = `${item.mediaType}-${item.id || item.tmdbId}`;
-            if (newKeys.has(key)) {
-              card.style.animationDelay = `${animIndex * 0.03}s`;
-              animIndex++;
-            } else {
-              card.classList.add("seerr-instant");  // No animation for existing items
-            }
+            return newKeys.has(key);
+          });
+
+          // Filter and append only new items
+          const filteredNew = filterTalkShows(newItems, studioState.excludeTalkShows);
+          filteredNew.forEach((item, i) => {
+            const card = createCard(item);
+            card.style.animationDelay = `${i * 0.03}s`;
             container.appendChild(card);
           });
 
           // Update title count
+          const totalDisplayed = container.querySelectorAll(".seerr-card").length;
           const titleEl = section.querySelector(".sectionTitle");
           if (titleEl) {
-            titleEl.textContent = `More from ${studioState.name} on Jellyseerr (${sortedItems.length})`;
+            titleEl.textContent = `More from ${studioState.name} on Jellyseerr (${totalDisplayed})`;
           }
-          log("Added", newKeys.size, "new items, total:", studioState.allItems.length);
+          log("Added", filteredNew.length, "new items, total displayed:", totalDisplayed);
         }
       }
     } catch (e) {
@@ -505,6 +478,19 @@
       log("Error loading more:", e);
     } finally {
       studioState.loading = false;
+
+      // Check if we should keep loading (user scrolled fast past trigger)
+      if (studioState.page < studioState.totalPages) {
+        const trigger = section.querySelector(".seerr-load-trigger");
+        if (trigger) {
+          const rect = trigger.getBoundingClientRect();
+          const inView = rect.top < window.innerHeight + 800; // Same margin as observer
+          if (inView) {
+            log("Trigger still in view, loading more...");
+            setTimeout(() => loadMoreStudioItems(), 100);
+          }
+        }
+      }
     }
   }
 

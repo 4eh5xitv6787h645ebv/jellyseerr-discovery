@@ -399,14 +399,14 @@
     // Remove skeletons
     removeSkeletons(section);
 
-    if (!data?.credits?.length) {
+    if (!data?.Credits?.length) {
       section.remove();
       log("No credits found");
       return;
     }
 
     const excludeTalkShows = config.ExcludeTalkShows !== false;
-    let credits = sortItems(dedupeItems(data.credits));
+    let credits = sortItems(dedupeItems(data.Credits));
     credits = filterTalkShows(credits, excludeTalkShows);
     log("Got", credits.length, "unique credits (after filtering)");
 
@@ -439,11 +439,11 @@
       // Remove skeletons
       removeSkeletons(section);
 
-      if (data?.items?.length) {
+      if (data?.Items?.length) {
         // Track which items are new for animation
         const newKeys = new Set();
 
-        for (const item of dedupeItems(data.items)) {
+        for (const item of dedupeItems(data.Items)) {
           const key = `${item.mediaType}-${item.id || item.tmdbId}`;
           if (!studioState.seenKeys.has(key)) {
             studioState.seenKeys.add(key);
@@ -498,14 +498,14 @@
     const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
     log("Studio search result:", data);
 
-    if (!data?.items?.length) { log("No items found for studio"); return; }
+    if (!data?.Items?.length) { log("No items found for studio"); return; }
 
     const excludeTalkShows = config.ExcludeTalkShows !== false;
 
     // Initialize state with actual items (not just keys)
     const seenKeys = new Set();
     const allItems = [];
-    for (const item of dedupeItems(data.items)) {
+    for (const item of dedupeItems(data.Items)) {
       const key = `${item.mediaType}-${item.id || item.tmdbId}`;
       if (!seenKeys.has(key)) {
         seenKeys.add(key);
@@ -516,7 +516,7 @@
     studioState = {
       name: studioName,
       page: 1,
-      totalPages: data.totalPages || 1,
+      totalPages: data.TotalPages || 1,
       loading: false,
       allItems: allItems,
       seenKeys: seenKeys,

@@ -18,7 +18,7 @@
   const DEBUG = true;
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.4.2.0");
+  console.log("[Discovery] Script loaded v1.4.3.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -504,8 +504,11 @@
     document.getElementById('discovery-person-appearances')?.remove();
     document.getElementById('discovery-person-crew')?.remove();
 
-    // Find insert point - after the last verticalSection (Movies, Shows, Episodes)
-    const allSections = document.querySelectorAll('.verticalSection');
+    // Find insert point - after the last verticalSection in VISIBLE page
+    const visiblePage = document.querySelector('.page:not(.hide)');
+    const allSections = visiblePage
+      ? visiblePage.querySelectorAll('.verticalSection')
+      : document.querySelectorAll('.verticalSection');
     const lastSection = allSections[allSections.length - 1];
     if (!lastSection) { log('No sections found'); return; }
 
@@ -547,6 +550,33 @@
       container.appendChild(fragment);
 
       insertPoint.parentNode.insertBefore(crewSection, insertPoint.nextSibling);
+    }
+
+    // Verify sections are visible, re-insert if needed
+    await new Promise(r => setTimeout(r, 100));
+    const appearancesSection = document.getElementById('discovery-person-appearances');
+    const crewSection2 = document.getElementById('discovery-person-crew');
+
+    if ((appearancesSection && appearancesSection.offsetHeight === 0) ||
+        (crewSection2 && crewSection2.offsetHeight === 0)) {
+      log('Person sections not visible, looking for correct page...');
+      const correctPage = document.querySelector('.page:not(.hide)');
+      if (correctPage) {
+        const sections = correctPage.querySelectorAll('.verticalSection');
+        const lastSection = sections[sections.length - 1];
+        if (lastSection && lastSection.id !== 'discovery-person-appearances' && lastSection.id !== 'discovery-person-crew') {
+          let insertPoint = lastSection;
+          if (appearancesSection && appearancesSection.offsetHeight === 0) {
+            log('Re-inserting appearances section');
+            insertPoint.parentNode.insertBefore(appearancesSection, insertPoint.nextSibling);
+            insertPoint = appearancesSection;
+          }
+          if (crewSection2 && crewSection2.offsetHeight === 0) {
+            log('Re-inserting crew section');
+            insertPoint.parentNode.insertBefore(crewSection2, insertPoint.nextSibling);
+          }
+        }
+      }
     }
   }
 
@@ -591,12 +621,16 @@
     // Remove existing
     document.getElementById('discovery-studio-section')?.remove();
 
-    // Find container - poll for correct element
+    // Find container - poll for correct element in VISIBLE page only
     let pageContent = null;
     for (let i = 0; i < 15; i++) {
-      pageContent = document.querySelector('.itemsContainer.vertical-wrap.centered') ||
-                    document.querySelector('.padded-left.padded-right .itemsContainer.vertical-wrap');
-      if (pageContent && !pageContent.classList.contains('nextUpItems')) break;
+      // Only look in visible pages (without 'hide' class)
+      const visiblePage = document.querySelector('.page.libraryPage:not(.hide)');
+      if (visiblePage) {
+        pageContent = visiblePage.querySelector('.itemsContainer.vertical-wrap.centered') ||
+                      visiblePage.querySelector('.padded-left.padded-right .itemsContainer.vertical-wrap');
+        if (pageContent && !pageContent.classList.contains('nextUpItems')) break;
+      }
       pageContent = null;
       if (i < 14) await new Promise(r => setTimeout(r, 200));
     }
@@ -633,6 +667,22 @@
 
     // Insert AFTER the existing items container, not before
     pageContent.parentNode.insertBefore(section, pageContent.nextSibling);
+
+    // Verify the section is actually visible (parent page not hidden)
+    // If not, try to re-insert into the correct visible page
+    await new Promise(r => setTimeout(r, 100));
+    if (section.offsetHeight === 0) {
+      log('Section not visible, looking for correct page...');
+      const correctPage = document.querySelector('.page.libraryPage:not(.hide)');
+      if (correctPage) {
+        const correctContainer = correctPage.querySelector('.itemsContainer.vertical-wrap.centered') ||
+                                 correctPage.querySelector('.padded-left.padded-right .itemsContainer.vertical-wrap');
+        if (correctContainer && !correctContainer.classList.contains('nextUpItems')) {
+          log('Re-inserting into visible page');
+          correctContainer.parentNode.insertBefore(section, correctContainer.nextSibling);
+        }
+      }
+    }
   }
 
   async function handleNavigation() {

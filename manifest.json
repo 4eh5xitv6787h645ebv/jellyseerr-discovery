@@ -8,10 +8,10 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.4.2.0",
+        "version": "1.4.3.0",
         "changelog": "Fix studio lookup fallback - get studio name from items when direct API fails",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.4.2.0/JellyseerrDiscovery.zip",
+        "sourceUrl": "https://github.com/4eh5xitv6787h645ebv/jellyseerr-discovery/releases/download/v1.4.3.0/JellyseerrDiscovery.zip",
         "checksum": "946dad16a3bf80f38fc763c931893197",
         "timestamp": "2026-01-03T21:10:00Z"
       },

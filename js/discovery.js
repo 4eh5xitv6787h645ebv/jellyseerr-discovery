@@ -18,7 +18,7 @@
   let DEBUG = false; // Will be set from config.DebugMode
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.5.3.0");
+  console.log("[Discovery] Script loaded v1.5.4.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -386,8 +386,8 @@
     seenKeys: new Set(),
     observer: null,
     excludeTalkShows: true,
-    triggerWasHidden: true,  // Require trigger to be hidden before loading again
-    lastLoadTime: 0
+    lastLoadTime: 0,
+    triggerLeftViewport: false  // Track if trigger left viewport since last load
   };
 
   async function loadMoreStudioItems() {
@@ -395,23 +395,22 @@
     if (!studioState.enableInfiniteScroll) return;
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
-    // IMPORTANT: Require trigger to have been hidden (scrolled out of view) before loading more
-    // This prevents infinite loading when stuck at bottom
-    if (!studioState.triggerWasHidden) {
-      log('Waiting for trigger to leave viewport before loading more');
-      return;
-    }
-
-    // Also enforce minimum time between loads (2 seconds)
     const now = Date.now();
-    if (now - studioState.lastLoadTime < 2000) {
-      log('Throttled - too soon since last load');
+    const timeSinceLastLoad = now - studioState.lastLoadTime;
+
+    // Use different delays based on whether user scrolled or stayed at bottom
+    // If trigger left viewport (user scrolled), allow quick reload (1 second)
+    // If trigger stayed visible (at bottom), require longer delay (4 seconds)
+    const requiredDelay = studioState.triggerLeftViewport ? 1000 : 4000;
+
+    if (timeSinceLastLoad < requiredDelay) {
+      log('Throttled - need', requiredDelay, 'ms, only', timeSinceLastLoad, 'ms passed');
       return;
     }
 
     studioState.loading = true;
-    studioState.triggerWasHidden = false; // Reset - require trigger to hide again
     studioState.lastLoadTime = now;
+    studioState.triggerLeftViewport = false; // Reset for next cycle
 
     const section = document.getElementById('discovery-studio-section');
     const container = section?.querySelector('.itemsContainer');
@@ -685,8 +684,8 @@
       excludeTalkShows,
       enableInfiniteScroll,
       config,
-      triggerWasHidden: true, // Allow first load
-      lastLoadTime: 0
+      lastLoadTime: 0,
+      triggerLeftViewport: true  // Allow first load immediately
     };
 
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);
@@ -739,12 +738,12 @@
             loadMoreStudioItems();
           }
         } else {
-          // Trigger left viewport - user scrolled up or content pushed it away
-          // This allows the next load when trigger becomes visible again
-          studioState.triggerWasHidden = true;
-          log('Trigger left viewport - next load enabled');
+          // Trigger left viewport - user scrolled up
+          // This enables faster loading when they scroll back down
+          studioState.triggerLeftViewport = true;
+          log('Trigger left viewport - fast reload enabled');
         }
-      }, { rootMargin: '200px' });  // Reduced margin
+      }, { rootMargin: '300px' });
       studioState.observer.observe(trigger);
     }
 

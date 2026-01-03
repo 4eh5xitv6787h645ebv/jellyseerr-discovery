@@ -18,7 +18,7 @@
   let DEBUG = false; // Will be set from config.DebugMode
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.5.2.0");
+  console.log("[Discovery] Script loaded v1.5.3.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -386,8 +386,8 @@
     seenKeys: new Set(),
     observer: null,
     excludeTalkShows: true,
-    userScrolled: false,
-    scrollHandler: null
+    triggerWasHidden: true,  // Require trigger to be hidden before loading again
+    lastLoadTime: 0
   };
 
   async function loadMoreStudioItems() {
@@ -395,20 +395,23 @@
     if (!studioState.enableInfiniteScroll) return;
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
-    // IMPORTANT: Require user to have scrolled before loading more
+    // IMPORTANT: Require trigger to have been hidden (scrolled out of view) before loading more
     // This prevents infinite loading when stuck at bottom
-    if (!studioState.userScrolled) {
-      log('Waiting for user scroll before loading more');
+    if (!studioState.triggerWasHidden) {
+      log('Waiting for trigger to leave viewport before loading more');
+      return;
+    }
+
+    // Also enforce minimum time between loads (2 seconds)
+    const now = Date.now();
+    if (now - studioState.lastLoadTime < 2000) {
+      log('Throttled - too soon since last load');
       return;
     }
 
     studioState.loading = true;
-    studioState.userScrolled = false; // Reset - require scroll again for next load
-
-    // Disconnect observer while loading to prevent re-triggering
-    if (studioState.observer) {
-      studioState.observer.disconnect();
-    }
+    studioState.triggerWasHidden = false; // Reset - require trigger to hide again
+    studioState.lastLoadTime = now;
 
     const section = document.getElementById('discovery-studio-section');
     const container = section?.querySelector('.itemsContainer');
@@ -507,17 +510,8 @@
       log('Error loading more:', e);
     } finally {
       studioState.loading = false;
-
-      // Reconnect observer after a delay to allow content to settle
-      if (studioState.page < studioState.totalPages) {
-        setTimeout(() => {
-          const trigger = section?.querySelector('.discovery-load-trigger');
-          if (trigger && studioState.observer) {
-            studioState.observer.observe(trigger);
-            log('Observer reconnected');
-          }
-        }, 300);
-      }
+      // Observer stays connected - it will handle the next trigger
+      // but triggerWasHidden=false prevents immediate re-load
     }
   }
 
@@ -680,16 +674,6 @@
       }
     }
 
-    // Clean up previous scroll handler if exists
-    if (studioState.scrollHandler) {
-      window.removeEventListener('scroll', studioState.scrollHandler);
-    }
-
-    // Create scroll handler to detect user scrolling
-    const scrollHandler = () => {
-      studioState.userScrolled = true;
-    };
-
     studioState = {
       name: studioName,
       page: 1,
@@ -701,12 +685,9 @@
       excludeTalkShows,
       enableInfiniteScroll,
       config,
-      userScrolled: true, // Allow first load without scroll
-      scrollHandler
+      triggerWasHidden: true, // Allow first load
+      lastLoadTime: 0
     };
-
-    // Add scroll listener
-    window.addEventListener('scroll', scrollHandler, { passive: true });
 
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);
     log('Got', displayItems.length, 'items, total pages:', studioState.totalPages);
@@ -751,10 +732,19 @@
       container.appendChild(trigger);
 
       studioState.observer = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !studioState.loading) {
-          loadMoreStudioItems();
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          // Trigger is visible - try to load if conditions are met
+          if (!studioState.loading) {
+            loadMoreStudioItems();
+          }
+        } else {
+          // Trigger left viewport - user scrolled up or content pushed it away
+          // This allows the next load when trigger becomes visible again
+          studioState.triggerWasHidden = true;
+          log('Trigger left viewport - next load enabled');
         }
-      }, { rootMargin: '400px' });  // Reduced from 800px to prevent aggressive loading
+      }, { rootMargin: '200px' });  // Reduced margin
       studioState.observer.observe(trigger);
     }
 

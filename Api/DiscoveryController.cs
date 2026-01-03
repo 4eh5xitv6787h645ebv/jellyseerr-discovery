@@ -394,6 +394,57 @@ public class DiscoveryController : ControllerBase
 
         return new FileStreamResult(stream, "application/javascript");
     }
+
+    /// <summary>
+    /// Get the plugin configuration for the client-side JavaScript.
+    /// </summary>
+    [HttpGet("config")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<ClientConfigResponse> GetClientConfig()
+    {
+        return Ok(new ClientConfigResponse
+        {
+            Enabled = Config.Enabled,
+            JellyseerrUrl = Config.JellyseerrUrl,
+            ExcludeTalkShows = Config.ExcludeTalkShows,
+            DebugMode = Config.DebugMode,
+            ShowPersonDiscovery = Config.ShowPersonDiscovery,
+            ShowCastCredits = Config.ShowCastCredits,
+            ShowCrewCredits = Config.ShowCrewCredits,
+            ShowStudioDiscovery = Config.ShowStudioDiscovery,
+            EnableInfiniteScroll = Config.EnableInfiniteScroll,
+            ShowMediaStatus = Config.ShowMediaStatus,
+            ShowMediaTypeBadge = Config.ShowMediaTypeBadge,
+            ShowRatings = Config.ShowRatings,
+            ShowYear = Config.ShowYear,
+            ShowOverviewOnHover = Config.ShowOverviewOnHover,
+            ShowCollectionBadge = Config.ShowCollectionBadge,
+            ShowRoleName = Config.ShowRoleName
+        });
+    }
+}
+
+/// <summary>
+/// Client-side configuration response.
+/// </summary>
+public class ClientConfigResponse
+{
+    public bool Enabled { get; set; }
+    public string? JellyseerrUrl { get; set; }
+    public bool ExcludeTalkShows { get; set; }
+    public bool DebugMode { get; set; }
+    public bool ShowPersonDiscovery { get; set; }
+    public bool ShowCastCredits { get; set; }
+    public bool ShowCrewCredits { get; set; }
+    public bool ShowStudioDiscovery { get; set; }
+    public bool EnableInfiniteScroll { get; set; }
+    public bool ShowMediaStatus { get; set; }
+    public bool ShowMediaTypeBadge { get; set; }
+    public bool ShowRatings { get; set; }
+    public bool ShowYear { get; set; }
+    public bool ShowOverviewOnHover { get; set; }
+    public bool ShowCollectionBadge { get; set; }
+    public bool ShowRoleName { get; set; }
 }
 
 /// <summary>

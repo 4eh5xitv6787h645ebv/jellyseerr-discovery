@@ -15,10 +15,10 @@
   if (window.__JellyseerrDiscoveryV2) return;
   window.__JellyseerrDiscoveryV2 = true;
 
-  const DEBUG = true;
+  let DEBUG = false; // Will be set from config.DebugMode
   const log = (...a) => DEBUG && console.log("[Discovery]", ...a);
 
-  console.log("[Discovery] Script loaded v1.4.3.0");
+  console.log("[Discovery] Script loaded v1.5.0.0");
 
   let lastUrl = "";
   let isProcessing = false;
@@ -194,7 +194,10 @@
   }
 
   // Create a card matching Jellyfin Enhanced style
-  function createCard(item) {
+  function createCard(item, config = null) {
+    // Use passed config or fallback to cached config
+    const cfg = config || pluginConfig || {};
+
     const card = document.createElement('div');
     card.className = 'discovery-card card overflowPortraitCard card-hoverable card-withuserdata';
     if (hasJellyfinEnhanced()) card.classList.add('jellyseerr-card');
@@ -208,33 +211,62 @@
     const overview = item.overview || '';
 
     // Role info (character for cast, job for crew)
-    const role = item.character ? `as ${item.character}` : (item.job || '');
+    const showRoleName = cfg.ShowRoleName !== false;
+    const role = showRoleName ? (item.character ? `as ${item.character}` : (item.job || '')) : '';
 
-    // Determine status
+    // Determine status (only if ShowMediaStatus is enabled)
     let statusHtml = '';
-    const status = item.mediaInfo?.status;
-    if (status === 5) {
-      statusHtml = `<div class="discovery-status-badge status-available">${icons.check}</div>`;
-    } else if (status === 2) {
-      statusHtml = `<div class="discovery-status-badge status-pending">${icons.clock}</div>`;
-    } else if (status === 3 || status === 7) {
-      const hasDownloads = item.mediaInfo?.downloadStatus?.length > 0;
-      statusHtml = hasDownloads
-        ? `<div class="discovery-status-badge status-processing">${icons.spinner}</div>`
-        : `<div class="discovery-status-badge status-requested">${icons.clock}</div>`;
-    } else if (status === 4) {
-      statusHtml = `<div class="discovery-status-badge status-partial">${icons.partial}</div>`;
+    const showMediaStatus = cfg.ShowMediaStatus !== false;
+    if (showMediaStatus) {
+      const status = item.mediaInfo?.status;
+      if (status === 5) {
+        statusHtml = `<div class="discovery-status-badge status-available">${icons.check}</div>`;
+      } else if (status === 2) {
+        statusHtml = `<div class="discovery-status-badge status-pending">${icons.clock}</div>`;
+      } else if (status === 3 || status === 7) {
+        const hasDownloads = item.mediaInfo?.downloadStatus?.length > 0;
+        statusHtml = hasDownloads
+          ? `<div class="discovery-status-badge status-processing">${icons.spinner}</div>`
+          : `<div class="discovery-status-badge status-requested">${icons.clock}</div>`;
+      } else if (status === 4) {
+        statusHtml = `<div class="discovery-status-badge status-partial">${icons.partial}</div>`;
+      }
     }
 
-    // Media type badge
+    // Media type badge (only if ShowMediaTypeBadge is enabled)
+    const showMediaTypeBadge = cfg.ShowMediaTypeBadge !== false;
     const mediaLabel = mediaType === 'tv' ? 'SERIES' : 'MOVIE';
     const mediaBadgeClass = mediaType === 'tv' ? 'tv' : 'movie';
+    const mediaBadgeHtml = showMediaTypeBadge
+      ? `<div class="discovery-media-badge ${mediaBadgeClass}">${mediaLabel}</div>`
+      : '';
 
-    // Collection badge
+    // Collection badge (only if ShowCollectionBadge is enabled)
+    const showCollectionBadge = cfg.ShowCollectionBadge !== false;
     let collectionHtml = '';
-    if (item.collection && mediaType === 'movie') {
+    if (showCollectionBadge && item.collection && mediaType === 'movie') {
       collectionHtml = `<div class="discovery-collection-badge" data-collection-id="${item.collection.id}" data-collection-name="${item.collection.name || 'Collection'}"><span class="material-icons">collections</span><span>${item.collection.name || 'Collection'}</span></div>`;
     }
+
+    // Overview on hover (only if ShowOverviewOnHover is enabled)
+    const showOverviewOnHover = cfg.ShowOverviewOnHover !== false;
+    const overlayHtml = showOverviewOnHover
+      ? `<div class="cardOverlay"><div class="overview">${overview.slice(0, 300)}${overview.length > 300 ? '...' : ''}</div></div>`
+      : '';
+
+    // Year display (only if ShowYear is enabled)
+    const showYear = cfg.ShowYear !== false;
+    const yearHtml = showYear ? `<span>${year}</span>` : '';
+
+    // Rating display (only if ShowRatings is enabled)
+    const showRatings = cfg.ShowRatings !== false;
+    const ratingHtml = showRatings ? `<span class="rating">${icons.star} ${rating}</span>` : '';
+
+    // Build meta section (only show if we have content)
+    const hasMetaContent = showYear || showRatings;
+    const metaHtml = hasMetaContent
+      ? `<div class="cardText cardText-meta">${yearHtml}${ratingHtml}</div>`
+      : '';
 
     card.innerHTML = `
       <div class="cardBox cardBox-bottompadded">
@@ -243,19 +275,14 @@
           <div class="cardImageContainer coveredImage cardContent" style="${posterUrl ? `background-image: url('${posterUrl}');background-size:cover;` : ''}">
             ${!posterUrl ? `<div class="cardImage-placeholder"><span class="material-icons">${mediaType === 'tv' ? 'tv' : 'movie'}</span></div>` : ''}
             ${statusHtml}
-            <div class="discovery-media-badge ${mediaBadgeClass}">${mediaLabel}</div>
+            ${mediaBadgeHtml}
             ${collectionHtml}
-            <div class="cardOverlay">
-              <div class="overview">${overview.slice(0, 300)}${overview.length > 300 ? '...' : ''}</div>
-            </div>
+            ${overlayHtml}
           </div>
         </div>
         <div class="cardText cardText-title"><bdi>${title}</bdi></div>
         ${role ? `<div class="cardText cardText-role">${role}</div>` : ''}
-        <div class="cardText cardText-meta">
-          <span>${year}</span>
-          <span class="rating">${icons.star} ${rating}</span>
-        </div>
+        ${metaHtml}
       </div>
     `;
 
@@ -362,6 +389,8 @@
   };
 
   async function loadMoreStudioItems() {
+    // Check if infinite scroll is enabled
+    if (!studioState.enableInfiniteScroll) return;
     if (studioState.loading || studioState.page >= studioState.totalPages) return;
 
     studioState.loading = true;
@@ -418,10 +447,13 @@
           const firstIncomplete = container.querySelector('.discovery-card[data-complete="0"]');
           const loadTrigger = container.querySelector('.discovery-load-trigger');
 
+          // Get config from studioState
+          const cfg = studioState.config || null;
+
           // Insert complete items
           let animIndex = 0;
           for (const item of completeNew) {
-            const card = createCard(item);
+            const card = createCard(item, cfg);
             card.style.animationDelay = `${animIndex * 0.03}s`;
             if (firstIncomplete) {
               container.insertBefore(card, firstIncomplete);
@@ -435,7 +467,7 @@
 
           // Append incomplete items
           for (const item of incompleteNew) {
-            const card = createCard(item);
+            const card = createCard(item, cfg);
             card.style.animationDelay = `${animIndex * 0.03}s`;
             if (loadTrigger) {
               container.insertBefore(card, loadTrigger);
@@ -483,7 +515,20 @@
     const url = ApiClient.getUrl(`${CONFIG.apiBase}/person/${tmdbId}`);
     const [data, config] = await Promise.all([fetchJson(url), getPluginConfig()]);
 
+    // Check if person discovery is enabled
+    if (config.ShowPersonDiscovery === false) {
+      log('Person discovery disabled in settings');
+      return;
+    }
+
+    // Apply debug mode from config
+    if (config.DebugMode !== undefined) {
+      DEBUG = config.DebugMode;
+    }
+
     const excludeTalkShows = config.ExcludeTalkShows !== false;
+    const showCastCredits = config.ShowCastCredits !== false;
+    const showCrewCredits = config.ShowCrewCredits !== false;
 
     // Get cast (Appearances) and crew separately
     let castCredits = data?.Cast || [];
@@ -495,8 +540,12 @@
 
     log('Got', castCredits.length, 'cast credits and', crewCredits.length, 'crew credits');
 
-    if (castCredits.length === 0 && crewCredits.length === 0) {
-      log('No credits found');
+    // Check if we have any credits to show based on settings
+    const hasCastToShow = showCastCredits && castCredits.length > 0;
+    const hasCrewToShow = showCrewCredits && crewCredits.length > 0;
+
+    if (!hasCastToShow && !hasCrewToShow) {
+      log('No credits to show (either none found or disabled in settings)');
       return;
     }
 
@@ -515,7 +564,7 @@
     let insertPoint = lastSection;
 
     // Create Appearances section (cast credits) - vertical wrap layout
-    if (castCredits.length > 0) {
+    if (hasCastToShow) {
       const appearancesSection = createSection(`Appearances (${castCredits.length})`, false);
       appearancesSection.id = 'discovery-person-appearances';
 
@@ -523,7 +572,7 @@
       // Use DocumentFragment for batch DOM insertion (reduces reflows)
       const fragment = document.createDocumentFragment();
       castCredits.forEach((credit, i) => {
-        const card = createCard(credit);
+        const card = createCard(credit, config);
         // Cap animation delay to first 20 cards for performance
         if (i < 20) card.style.animationDelay = `${i * 0.02}s`;
         fragment.appendChild(card);
@@ -535,7 +584,7 @@
     }
 
     // Create Crew section - vertical wrap layout
-    if (crewCredits.length > 0) {
+    if (hasCrewToShow) {
       const crewSection = createSection(`Crew (${crewCredits.length})`, false);
       crewSection.id = 'discovery-person-crew';
 
@@ -543,7 +592,7 @@
       // Use DocumentFragment for batch DOM insertion
       const fragment = document.createDocumentFragment();
       crewCredits.forEach((credit, i) => {
-        const card = createCard(credit);
+        const card = createCard(credit, config);
         if (i < 20) card.style.animationDelay = `${i * 0.02}s`;
         fragment.appendChild(card);
       });
@@ -589,9 +638,21 @@
     const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioName)}&page=1`);
     const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
 
+    // Check if studio discovery is enabled
+    if (config.ShowStudioDiscovery === false) {
+      log('Studio discovery disabled in settings');
+      return;
+    }
+
+    // Apply debug mode from config
+    if (config.DebugMode !== undefined) {
+      DEBUG = config.DebugMode;
+    }
+
     if (!data?.Items?.length) { log('No items found'); return; }
 
     const excludeTalkShows = config.ExcludeTalkShows !== false;
+    const enableInfiniteScroll = config.EnableInfiniteScroll !== false;
 
     // Initialize state
     const seenKeys = new Set();
@@ -612,7 +673,9 @@
       allItems,
       seenKeys,
       observer: null,
-      excludeTalkShows
+      excludeTalkShows,
+      enableInfiniteScroll,
+      config
     };
 
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);
@@ -644,15 +707,15 @@
     // Use DocumentFragment for batch DOM insertion
     const fragment = document.createDocumentFragment();
     displayItems.forEach((item, i) => {
-      const card = createCard(item);
+      const card = createCard(item, config);
       // Cap animation delay to first 15 cards for performance
       if (i < 15) card.style.animationDelay = `${i * 0.03}s`;
       fragment.appendChild(card);
     });
     container.appendChild(fragment);
 
-    // Add infinite scroll trigger
-    if (studioState.totalPages > 1) {
+    // Add infinite scroll trigger (only if enabled and more pages exist)
+    if (enableInfiniteScroll && studioState.totalPages > 1) {
       const trigger = document.createElement('div');
       trigger.className = 'discovery-load-trigger';
       container.appendChild(trigger);

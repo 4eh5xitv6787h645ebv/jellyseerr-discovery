@@ -72,7 +72,7 @@
                     </div>
 
                     <div class="verticalSection">
-                        <h3 class="sectionTitle">Display Options</h3>
+                        <h3 class="sectionTitle">Content Filtering</h3>
 
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="MaxResults">
@@ -98,16 +98,6 @@
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
-                                <input type="checkbox" is="emby-checkbox" id="ShowMediaStatus" />
-                                <span>Show media status</span>
-                            </label>
-                            <div class="fieldDescription">
-                                Show the availability status (Available, Requested, etc.) for each item.
-                            </div>
-                        </div>
-
-                        <div class="checkboxContainer checkboxContainer-withDescription">
-                            <label class="emby-checkbox-label">
                                 <input type="checkbox" is="emby-checkbox" id="ExcludeTalkShows" />
                                 <span>Exclude talk shows &amp; award shows</span>
                             </label>
@@ -116,6 +106,143 @@
                                 (e.g., "The Late Show", "The Kelly Clarkson Show", "Tony Awards").
                             </div>
                         </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Person Page Settings</h3>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowPersonDiscovery" />
+                                <span>Enable discovery on person pages</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show filmography discovery sections when viewing actor/director pages.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowCastCredits" />
+                                <span>Show Appearances section</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the "Appearances" section with movies/shows where the person acted.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowCrewCredits" />
+                                <span>Show Crew section</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the "Crew" section with movies/shows where the person worked behind the scenes
+                                (director, writer, producer, etc.).
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Studio Page Settings</h3>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowStudioDiscovery" />
+                                <span>Enable discovery on studio pages</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show catalog discovery sections when viewing studio/network pages.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="EnableInfiniteScroll" />
+                                <span>Enable infinite scroll</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Automatically load more items as you scroll down on studio pages.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Card Display Options</h3>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowMediaStatus" />
+                                <span>Show media status badge</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the availability status badge (Available, Requested, Processing, etc.) on cards.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowMediaTypeBadge" />
+                                <span>Show media type badge</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the MOVIE/SERIES badge on cards.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowRatings" />
+                                <span>Show ratings</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the star rating below each card.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowYear" />
+                                <span>Show year</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the release year below each card.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowRoleName" />
+                                <span>Show character/role name</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the character name (e.g., "as Tony Stark") on person page cards.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowOverviewOnHover" />
+                                <span>Show overview on hover</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the movie/show description when hovering over a card.
+                            </div>
+                        </div>
+
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" is="emby-checkbox" id="ShowCollectionBadge" />
+                                <span>Show collection badge</span>
+                            </label>
+                            <div class="fieldDescription">
+                                Show the collection badge (e.g., "Marvel Cinematic Universe") on movie cards.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Advanced</h3>
 
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
@@ -162,14 +289,37 @@
                     Dashboard.showLoadingMsg();
                     ApiClient.getPluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId)
                         .then(function (config) {
+                            // General
                             document.querySelector('#Enabled').checked = config.Enabled;
                             document.querySelector('#JellyseerrUrl').value = config.JellyseerrUrl || '';
                             document.querySelector('#JellyseerrApiKey').value = config.JellyseerrApiKey || '';
+
+                            // Content Filtering
                             document.querySelector('#MaxResults').value = config.MaxResults || 50;
                             document.querySelector('#IncludeLibraryItems').checked = config.IncludeLibraryItems;
-                            document.querySelector('#ShowMediaStatus').checked = config.ShowMediaStatus;
                             document.querySelector('#ExcludeTalkShows').checked = config.ExcludeTalkShows !== false;
+
+                            // Person Page
+                            document.querySelector('#ShowPersonDiscovery').checked = config.ShowPersonDiscovery !== false;
+                            document.querySelector('#ShowCastCredits').checked = config.ShowCastCredits !== false;
+                            document.querySelector('#ShowCrewCredits').checked = config.ShowCrewCredits !== false;
+
+                            // Studio Page
+                            document.querySelector('#ShowStudioDiscovery').checked = config.ShowStudioDiscovery !== false;
+                            document.querySelector('#EnableInfiniteScroll').checked = config.EnableInfiniteScroll !== false;
+
+                            // Card Display
+                            document.querySelector('#ShowMediaStatus').checked = config.ShowMediaStatus !== false;
+                            document.querySelector('#ShowMediaTypeBadge').checked = config.ShowMediaTypeBadge !== false;
+                            document.querySelector('#ShowRatings').checked = config.ShowRatings !== false;
+                            document.querySelector('#ShowYear').checked = config.ShowYear !== false;
+                            document.querySelector('#ShowRoleName').checked = config.ShowRoleName !== false;
+                            document.querySelector('#ShowOverviewOnHover').checked = config.ShowOverviewOnHover !== false;
+                            document.querySelector('#ShowCollectionBadge').checked = config.ShowCollectionBadge !== false;
+
+                            // Advanced
                             document.querySelector('#DebugMode').checked = config.DebugMode;
+
                             Dashboard.hideLoadingMsg();
                         });
                 });
@@ -181,13 +331,35 @@
 
                     ApiClient.getPluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId)
                         .then(function (config) {
+                            // General
                             config.Enabled = document.querySelector('#Enabled').checked;
                             config.JellyseerrUrl = document.querySelector('#JellyseerrUrl').value;
                             config.JellyseerrApiKey = document.querySelector('#JellyseerrApiKey').value;
+
+                            // Content Filtering
                             config.MaxResults = parseInt(document.querySelector('#MaxResults').value) || 50;
                             config.IncludeLibraryItems = document.querySelector('#IncludeLibraryItems').checked;
-                            config.ShowMediaStatus = document.querySelector('#ShowMediaStatus').checked;
                             config.ExcludeTalkShows = document.querySelector('#ExcludeTalkShows').checked;
+
+                            // Person Page
+                            config.ShowPersonDiscovery = document.querySelector('#ShowPersonDiscovery').checked;
+                            config.ShowCastCredits = document.querySelector('#ShowCastCredits').checked;
+                            config.ShowCrewCredits = document.querySelector('#ShowCrewCredits').checked;
+
+                            // Studio Page
+                            config.ShowStudioDiscovery = document.querySelector('#ShowStudioDiscovery').checked;
+                            config.EnableInfiniteScroll = document.querySelector('#EnableInfiniteScroll').checked;
+
+                            // Card Display
+                            config.ShowMediaStatus = document.querySelector('#ShowMediaStatus').checked;
+                            config.ShowMediaTypeBadge = document.querySelector('#ShowMediaTypeBadge').checked;
+                            config.ShowRatings = document.querySelector('#ShowRatings').checked;
+                            config.ShowYear = document.querySelector('#ShowYear').checked;
+                            config.ShowRoleName = document.querySelector('#ShowRoleName').checked;
+                            config.ShowOverviewOnHover = document.querySelector('#ShowOverviewOnHover').checked;
+                            config.ShowCollectionBadge = document.querySelector('#ShowCollectionBadge').checked;
+
+                            // Advanced
                             config.DebugMode = document.querySelector('#DebugMode').checked;
 
                             ApiClient.updatePluginConfiguration(JellyseerrDiscoveryConfig.pluginUniqueId, config)

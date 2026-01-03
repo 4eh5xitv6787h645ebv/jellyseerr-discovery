@@ -387,7 +387,8 @@
     observer: null,
     excludeTalkShows: true,
     lastLoadTime: 0,
-    triggerLeftViewport: false  // Track if trigger left viewport since last load
+    triggerLeftViewport: false,  // Track if trigger left viewport since last load
+    pendingRetry: null  // Timeout ID for scheduled retry when throttled
   };
 
   async function loadMoreStudioItems() {
@@ -404,8 +405,21 @@
     const requiredDelay = studioState.triggerLeftViewport ? 1000 : 4000;
 
     if (timeSinceLastLoad < requiredDelay) {
-      log('Throttled - need', requiredDelay, 'ms, only', timeSinceLastLoad, 'ms passed');
+      const remaining = requiredDelay - timeSinceLastLoad;
+      log('Throttled - need', requiredDelay, 'ms, only', timeSinceLastLoad, 'ms passed, retry in', remaining, 'ms');
+      // Schedule a retry after throttle expires (if not already scheduled)
+      if (!studioState.pendingRetry) {
+        studioState.pendingRetry = setTimeout(() => {
+          studioState.pendingRetry = null;
+          loadMoreStudioItems();
+        }, remaining + 100);  // Add 100ms buffer
+      }
       return;
+    }
+    // Clear any pending retry since we're proceeding with load
+    if (studioState.pendingRetry) {
+      clearTimeout(studioState.pendingRetry);
+      studioState.pendingRetry = null;
     }
 
     studioState.loading = true;
@@ -509,8 +523,23 @@
       log('Error loading more:', e);
     } finally {
       studioState.loading = false;
-      // Observer stays connected - it will handle the next trigger
-      // but triggerWasHidden=false prevents immediate re-load
+      // Check if trigger is still visible and we have more pages - schedule next load
+      if (studioState.page < studioState.totalPages) {
+        const trigger = document.querySelector('.discovery-load-trigger');
+        if (trigger) {
+          const rect = trigger.getBoundingClientRect();
+          const isVisible = rect.top < window.innerHeight + 300;  // Match rootMargin
+          if (isVisible && !studioState.pendingRetry) {
+            // Trigger still visible, schedule next load after throttle delay
+            const delay = studioState.triggerLeftViewport ? 1000 : 4000;
+            log('Trigger still visible, scheduling next load in', delay, 'ms');
+            studioState.pendingRetry = setTimeout(() => {
+              studioState.pendingRetry = null;
+              loadMoreStudioItems();
+            }, delay + 100);
+          }
+        }
+      }
     }
   }
 
@@ -642,6 +671,10 @@
 
     // Reset state
     if (studioState.observer) studioState.observer.disconnect();
+    if (studioState.pendingRetry) {
+      clearTimeout(studioState.pendingRetry);
+      studioState.pendingRetry = null;
+    }
 
     const searchUrl = ApiClient.getUrl(`${CONFIG.apiBase}/studio/search?name=${encodeURIComponent(studioName)}&page=1`);
     const [data, config] = await Promise.all([fetchJson(searchUrl), getPluginConfig()]);
@@ -685,7 +718,8 @@
       enableInfiniteScroll,
       config,
       lastLoadTime: 0,
-      triggerLeftViewport: true  // Allow first load immediately
+      triggerLeftViewport: true,  // Allow first load immediately
+      pendingRetry: null
     };
 
     const displayItems = filterTalkShows(sortItems(allItems), excludeTalkShows);

@@ -230,9 +230,13 @@
   function createCard(item) {
     const card = document.createElement("button");
     card.type = "button";
-    card.className = "card portraitCard card-hoverable card-withuserdata";
+    card.className = "card portraitCard card-hoverable card-withuserdata seerr-card";
     card.dataset.tmdbid = item.id || item.tmdbId;
     card.dataset.mediatype = item.mediaType;
+    // Mark if item is "complete" (has both poster and year) for sorted insertion
+    const hasPoster = !!item.posterPath;
+    const hasYear = !!(item.releaseDate || item.firstAirDate);
+    card.dataset.complete = (hasPoster && hasYear) ? "1" : "0";
 
     const title = item.title || item.name || "Unknown";
     const year = (item.releaseDate || item.firstAirDate || "").substring(0, 4);
@@ -450,19 +454,60 @@
         }
 
         if (newKeys.size > 0) {
-          // Only append NEW items - don't re-render existing ones to avoid flicker
+          // Get new items and filter them
           const newItems = studioState.allItems.filter(item => {
             const key = `${item.mediaType}-${item.id || item.tmdbId}`;
             return newKeys.has(key);
           });
-
-          // Filter and append only new items
           const filteredNew = filterTalkShows(newItems, studioState.excludeTalkShows);
-          filteredNew.forEach((item, i) => {
+
+          // Sort new items: complete (poster+year) first, incomplete last
+          const completeNew = [];
+          const incompleteNew = [];
+          for (const item of filteredNew) {
+            const hasPoster = !!item.posterPath;
+            const hasYear = !!(item.releaseDate || item.firstAirDate);
+            if (hasPoster && hasYear) {
+              completeNew.push(item);
+            } else {
+              incompleteNew.push(item);
+            }
+          }
+
+          // Find the first incomplete card in the container (insertion point for complete items)
+          const firstIncomplete = container.querySelector('.seerr-card[data-complete="0"]');
+
+          // Insert complete items before first incomplete, or before load trigger if no incomplete
+          let animIndex = 0;
+          for (const item of completeNew) {
             const card = createCard(item);
-            card.style.animationDelay = `${i * 0.03}s`;
-            container.appendChild(card);
-          });
+            card.style.animationDelay = `${animIndex * 0.03}s`;
+            if (firstIncomplete) {
+              container.insertBefore(card, firstIncomplete);
+            } else {
+              // No incomplete items yet, insert before load trigger
+              const trigger = container.querySelector(".seerr-load-trigger");
+              if (trigger) {
+                container.insertBefore(card, trigger);
+              } else {
+                container.appendChild(card);
+              }
+            }
+            animIndex++;
+          }
+
+          // Append incomplete items at the end (before load trigger)
+          for (const item of incompleteNew) {
+            const card = createCard(item);
+            card.style.animationDelay = `${animIndex * 0.03}s`;
+            const trigger = container.querySelector(".seerr-load-trigger");
+            if (trigger) {
+              container.insertBefore(card, trigger);
+            } else {
+              container.appendChild(card);
+            }
+            animIndex++;
+          }
 
           // Update title count
           const totalDisplayed = container.querySelectorAll(".seerr-card").length;
@@ -470,7 +515,7 @@
           if (titleEl) {
             titleEl.textContent = `More from ${studioState.name} on Jellyseerr (${totalDisplayed})`;
           }
-          log("Added", filteredNew.length, "new items, total displayed:", totalDisplayed);
+          log("Added", completeNew.length, "complete +", incompleteNew.length, "incomplete items, total:", totalDisplayed);
         }
       }
     } catch (e) {
